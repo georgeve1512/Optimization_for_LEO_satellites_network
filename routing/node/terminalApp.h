@@ -73,6 +73,7 @@ class TerminalApp : public cSimpleModule
         int numReceived;
         simsignal_t endToEndDelaySignal;
 
+        // Simulation basic functions
         virtual void initialize() override;
         virtual void handleMessage(cMessage *msg) override;
         virtual void finish() override;
