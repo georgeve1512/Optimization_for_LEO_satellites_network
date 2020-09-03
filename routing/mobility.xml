@@ -1,0 +1,6 @@
+<movement>
+    <set speed="50" angle="90" borderPolicy="wrap"/>
+    <repeat>
+        <forward t="60"/>
+    </repeat>
+</movement>
