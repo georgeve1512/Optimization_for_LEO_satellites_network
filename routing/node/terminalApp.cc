@@ -69,11 +69,7 @@ void TerminalApp::initialize()
     // Initialize satellite connection
     // TODO: initial connection, move to function
     isConnected = false;
-    satAddress = -1;
-    satDispStr = nullptr;
-    satPosX = -1;
-    satPosY = -1;
-    satUpdateInterval = 0;
+
 
     appMsg = new cMessage("Inter Arrival Time Self Message");
     scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
