@@ -32,8 +32,10 @@ module Terminal
         @statistic[coordY](title="coord Y"; source="yCoord(mobilityPos(mobilityStateChanged))"; record=vector; interpolationmode=linear);
         @display("i=device/antennatower;bgb=129,100");
     gates:
-        input in;
-        output out;
+        input mainIn;
+        output mainOut;
+        input subIn;
+        output subOut;
     submodules:
         app: TerminalApp {
             parameters:
@@ -44,6 +46,8 @@ module Terminal
             @display("p=89,44");
         }
     connections:
-        in --> app.localIn;
-        app.localOut --> out;
+        //mainIn --> app.mainIn;
+        //app.mainOut --> mainOut;
+		//subIn --> app.subIn;
+        //app.subOut --> subOut;
 }

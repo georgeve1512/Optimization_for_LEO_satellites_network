@@ -34,6 +34,8 @@ simple TerminalApp
         @statistic[endToEndDelay](title="end-to-end delay of arrived packets";unit=s;record=vector,mean,max,count;interpolationmode=none);
         
     gates:
-        input localIn;
-        output localOut;    
+        input mainIn @directIn;
+        //output mainOut;
+        input subIn @directIn;
+        //output subOut;
 }

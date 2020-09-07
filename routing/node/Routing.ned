@@ -25,16 +25,15 @@ simple Routing
         @statistic[TopoLinkCounter](title="Number of links enabled in Topology";interpolationmode=none;record=histogram,mean,max,count);
         @statistic[hopCount](title="count number of hops for packet";interpolationmode=none;record=histogram,mean,max,count);
         volatile double sendTime @unit(s) = default(exponential(10ms)); // time between generating packets
+        @signal[load_balance_channel](type="string");
         
-        	@signal[load_balance_channel](type="string");
     gates:
         input in[];
         output out[];
         input localIn;
         output localOut;
         
-//		inout out[]; //lll : no queue
-        
+        input terminalIn[10] @directIn;
 }
 
 

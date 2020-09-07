@@ -50,6 +50,7 @@ enum packet_type_list {
     terminal_message = 6,
     terminal_connect = 7,
     terminal_disconnect = 8,
+    terminal_index_assign = 9
 };
 enum kind_list {
     legacy = 0,
@@ -152,6 +153,12 @@ private:
     simtime_t queueschannel;
 
     cOutVector loadPrediction[4];
+
+    //// Terminals
+    RoutingTable myTerminalMap;       // Terminal address -> Index in terminal array [For terminals that are connected to self]
+    RoutingTable neighborTerminalMap; // Terminal address -> Satellite address       [For terminals that are connected to a neighbor]
+    bool isDirectPortTaken[10];       // Array of {true, false} to indicate if the port is taken or not. For message collision avoidance in this module
+    int packetDropCounter;            // Number of terminal packets lost (No match in any of the above tables)
 
 protected:
     virtual void initialize() override;

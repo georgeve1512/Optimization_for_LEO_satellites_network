@@ -17,7 +17,9 @@
 #include "Routing.h" // For enums
 
 Define_Module(TerminalApp);
-
+/************************************************************************************************************************************/
+/*---------------------------------------PUBLIC FUNCTIONS---------------------------------------------------------------------------*/
+/************************************************************************************************************************************/
 TerminalApp::~TerminalApp(){
     /*cancelAndDelete(appMsg);
     cancelAndDelete(updateMyPositionMsg);
@@ -25,11 +27,77 @@ TerminalApp::~TerminalApp(){
     delete indexList;
 }
 
+void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
+    /* Find the (X,Y) position of the terminal (self). The position is extracted from the mobility module's display string (the one that
+     *      changes during runtime).
+     * */
+
+    std::string dispStr(cDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
+    std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
+
+    dispStr = dispStr.substr(pos);                          // Cut string until the first number
+    posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
+                                                            //      location AFTER the first double
+
+    dispStr = dispStr.substr(pos);                          // Remove the X position from string
+
+    pos = dispStr.find_first_of("0123456789");              // find position of the first number
+    dispStr = dispStr.substr(pos);                          // Cut string until the first number
+    posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
+}
+
+int TerminalApp::getConnectedSatelliteAddress(){
+    /* Returns the address of the satellite connected to the terminal. If disconnected return -1.
+     * */
+
+    switch (isConnected){
+        case 1:{
+            // Only one is connected, that is the main
+            return mainSatAddress;
+        }
+        case 2:{
+            // Two are connected, return the sub satellite (More likely to be around when the packet is sent)
+            return subSatAddress;
+        }
+        default:
+            return -1;
+    }
+}
+
+double TerminalApp::getDistanceFromSatellite(int satAddress){
+    /* Get the distance from the terminal to [satAddress] satellite.
+     *      This function reads [satAddress] satellite's display string, parsing its position from it
+     *      and returns the distance from that satellite.
+     * This function assumes that the terminal's position is up-to-date
+     * */
+
+    // Read display string
+    cDisplayString *satDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
+    double satPosX, satPosY;
+
+    // Parse the position to [satPosX] & [satPosY]
+    updatePosition(satDispStr, satPosX, satPosY);
+
+    // Return distance from satellite
+    return sqrt(pow(myPosX-satPosX,2)+pow(myPosY-satPosY,2));
+}
+
+/************************************************************************************************************************************/
+/*---------------------------------------PRIVATE FUNCTIONS--------------------------------------------------------------------------*/
+/************************************************************************************************************************************/
 void TerminalApp::initialize()
 {
+    // Initialize message pointers
+    appMsg = nullptr;
+    updateMyPositionMsg = nullptr;
+    updateMainSatellitePositionMsg = nullptr;
+    updateSubSatellitePositionMsg = nullptr;
+
     // Initialize parameters
     myAddress = par("address").intValue();
     numOfTerminals = par("numOfTerminals").intValue();
+    numOfSatellites = getParentModule()->getParentModule()->par("num_of_hosts").intValue();
+    radius = getParentModule()->par("radius").doubleValue();
 
     /* Create an index array of possible targets.
      * The array is {0,1,...,numOfTerminals} without [myAddress].
@@ -60,18 +128,37 @@ void TerminalApp::initialize()
     numReceived = 0;                                       // Record with recordScalar()
     endToEndDelaySignal = registerSignal("endToEndDelay"); // Record with emit()
 
-    // Initialize helpers
-    radius = getParentModule()->par("radius").doubleValue();
+    // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
     updateInterval = getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
     updatePosition(myDispStr, myPosX, myPosY);
 
-    // Initialize satellite connection
-    // TODO: initial connection, move to function
-    isConnected = false;
+    // Initialize satellite database
+    isConnected = 0;
+    resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex);
+    resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
 
+    // Initialize satellite connection - connect to closest satellite as main
+    double minDistance = DBL_MAX;
+    int satAddress;
+    bool foundMin;
+    for(int i = 0; i < numOfSatellites; i++){
+        double dist = getDistanceFromSatellite(i);
+        if (dist <= radius && dist < minDistance){
+            minDistance = dist;
+            satAddress = i;
+            foundMin = true;
+        }
+    }
+    if (foundMin){
+        // Complete connection
+        // TODO: Might want to combine everything here to [connectToSatellite]. Remember to check is message exists or not
+        connectToSatellite(satAddress, main);
+        updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Time Message", mainSatellitePositionUpdateTime);
+        scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
+    }
 
-    appMsg = new cMessage("Inter Arrival Time Self Message");
+    appMsg = new cMessage("Inter Arrival Time Self Message", interArrivalTime);
     scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
 }
 
@@ -91,12 +178,24 @@ void TerminalApp::handleMessage(cMessage *msg)
                     terMsg->setDestAddr(indexList[intuniform(0, numOfTerminals-1)]);
                     terMsg->setPacketType(terminal_message);
                     terMsg->setByteLength(packetLengthBytes->intValue());
-                    send(terMsg, "localOut");
+
+                    // Choose target satellite - if there are two give priority to sub
+                    /* Note - sendDirect(cMessage *msg, simtime_t propagationDelay, simtime_t duration, cModule *mod, const char *gateName, int index=-1)
+                     *        is being used here.
+                     * TODO: set propagation/transmission duration. For transmission time R is required
+                     * */
+                    if (isConnected == 1)
+                        sendDirect(terMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("rte", mainSatAddress),"terminalIn", mainConnectionIndex);
+                    else
+                        sendDirect(terMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("rte", subSatAddress),"terminalIn", subConnectionIndex);
+
+                    // Update statistics
                     numSent++;
                 }
                 else{
                     EV << "Terminal " << myAddress << " is not connected to any satellite, retrying to send app data later" << endl;
                 }
+
 
                 cancelEvent(appMsg);
                 scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
@@ -112,14 +211,24 @@ void TerminalApp::handleMessage(cMessage *msg)
                 scheduleAt(simTime() + updateInterval, updateMyPositionMsg);
                 break;
             }
-            case satellitePositionUpdateTime:{
-                //// Update satellite position & check satellite connection
+            case mainSatellitePositionUpdateTime:{
+                //// Update main satellite position & check connection
 
-                updatePosition(satDispStr, satPosX, satPosY);
+                updatePosition(mainSatDispStr, mainSatPosX, mainSatPosY);
                 // TODO - Check connection
 
-                cancelEvent(updateSatellitePositionMsg);
-                scheduleAt(simTime() + satUpdateInterval, updateMyPositionMsg);
+                cancelEvent(updateMainSatellitePositionMsg);
+                scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
+                break;
+            }
+            case subSatellitePositionUpdateTime:{
+                //// Update sub satellite position & check connection
+
+                updatePosition(subSatDispStr, subSatPosX, subSatPosY);
+                // TODO - Check connection
+
+                cancelEvent(updateSubSatellitePositionMsg);
+                scheduleAt(simTime() + subSatUpdateInterval, updateSubSatellitePositionMsg);
                 break;
             }
         }
@@ -147,6 +256,11 @@ void TerminalApp::handleMessage(cMessage *msg)
                 delete msg;
                 break;
             }
+            case terminal_index_assign:{
+                //// Assign index from a satellite
+                // TODO: Complete handshake, might want to increase [isConnected] here
+                break;
+            }
             case terminal_list:
             case terminal_connect:
             case terminal_disconnect:
@@ -164,64 +278,64 @@ void TerminalApp::finish(){
     recordScalar("numReceived",numReceived);
 }
 
-void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
-    /* Find the (X,Y) position of the terminal (self). The position is extracted from the mobility module's display string (the one that
-     *      changes during runtime).
+bool TerminalApp::checkConnection(int mode){
+    /* Assuming the positions are up-to-date. Return whether the [mode] satellite is within disk or not
      * */
 
-    std::string dispStr(cDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
-    std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
-
-    dispStr = dispStr.substr(pos);                          // Cut string until the first number
-    posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
-                                                            //      location AFTER the first double
-
-    dispStr = dispStr.substr(pos);                          // Remove the X position from string
-
-    pos = dispStr.find_first_of("0123456789");              // find position of the first number
-    dispStr = dispStr.substr(pos);                          // Cut string until the first number
-    posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
+    switch (mode){
+        case main:{
+            return radius >= sqrt(pow(myPosX-mainSatPosX,2)+pow(myPosY-mainSatPosY,2));
+        }
+        case sub:{
+            return radius >= sqrt(pow(myPosX-subSatPosX,2)+pow(myPosY-subSatPosY,2));
+        }
+        default:
+            // Removes warning
+            return false;
+    }
 }
 
-bool TerminalApp::canConnectToSatellite(int satAddress){
-    /* Test whether terminal can connect to [satAddress] satellite.
-     *      This function reads [satAddress] satellite's display string, parsing its position from it
-     *      and calculates if the connection is up and returns the result.
-     * Note: it changes the following variables:
-     *       1. [satDispStr]
-     *       2. [satPosX]
-     *       3. [satPosY]
-     *       If the terminal can connect [satAddress] and [satUpdateInterval] are changed too.
-     * This function assumes that the terminal's position is up-to-date
+void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex){
+    satAddress = -1;
+    satDispStr = nullptr;
+    satPosX = -1;
+    satPosY = -1;
+    satUpdateInterval = -1;
+    connectionIndex = -1;
+}
+
+void TerminalApp::connectToSatellite(int satAddress, int mode){
+    /* Updates local database and send connection message to the satellite.
+     * Increases [isConnected] by 1.
      * */
-    // TODO: Might change return type to double, and return the distance (To pick minimum distance)
 
-    // Read display string
-    satDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
-
-    // Parse the position to [satPosX] & [satPosY]
-    updatePosition(satDispStr, satPosX, satPosY);
-
-    // Calculate result, update variables if can connect
-    isConnected = checkConnection();
-    if (isConnected){
-        this->satAddress = satAddress;
-        satUpdateInterval = getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->par("updateInterval").doubleValue();
+    switch (mode){
+        case main:{
+            mainSatAddress = satAddress;
+            mainSatDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
+            updatePosition(mainSatDispStr, mainSatPosX, mainSatPosY);
+            mainSatUpdateInterval = getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->par("updateInterval").doubleValue();
+            break;
+        }
+        case sub:{
+            subSatAddress = satAddress;
+            subSatDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
+            updatePosition(subSatDispStr, subSatPosX, subSatPosY);
+            subSatUpdateInterval = getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->par("updateInterval").doubleValue();
+            break;
+        }
     }
 
-    return isConnected;
-}
-
-bool TerminalApp::checkConnection(){
-    /* Assuming the positions are up-to-date. Return whether the satellite is within disk or not
-     * */
-    return radius >= sqrt(pow(myPosX-satPosX,2)+pow(myPosY-satPosY,2));
-}
-
-void TerminalApp::connectToSatellite(int satAddress){
-
+    // TODO: Connection handshake start - send terminal_connection to satellite
+    isConnected++;
 }
 
 void TerminalApp::disconnectFromSatellite(){
+    /* Disconnect from a satellite, and clear related database. Also, if the disconnected satellite is main, copy sub satellite's
+     *      data to main (if sub satellite exists)
+     * Reduces [isConnected] by 1.
+     * */
 
+    // TODO: Disconnection process - send terminal_disconnection to satellite
+    isConnected--;
 }

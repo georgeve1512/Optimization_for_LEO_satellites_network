@@ -36,7 +36,6 @@ module Node
         @display("i=misc/satellite2,gold");
     gates:
         inout port[];
-//        inout terminalPort;
     submodules:
         app: <appType> like IApp {
             parameters:

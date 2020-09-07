@@ -13,7 +13,7 @@ void App::sendPong( int src, int pingFlag )
 {
     Packet * pongMessage = new Packet("regular message");
     pongMessage -> setSrcAddr(myAddress);
-    pongMessage -> setPacketType( message );
+    pongMessage -> setPacketType(message);
     pongMessage -> setBitLength((int64_t) 12000); //1500Bytes as Ethernet protocol MTU suggest
     pongMessage -> setHopCount(0);
     pongMessage->setDestAddr(src);
@@ -40,7 +40,7 @@ void App::sendPing()
         {
             Packet * pingMessage = new Packet("regular message");
             pingMessage -> setSrcAddr(myAddress);
-            pingMessage -> setPacketType( message );
+            pingMessage -> setPacketType(message);
             pingMessage -> setBitLength((int64_t) 12000);//1500Bytes as Ethernet protocol MTU suggest
             pingMessage -> setHopCount(0);
             pingMessage->setDestAddr(i);
@@ -76,7 +76,7 @@ void App::sendMessage()
         j = intuniform(0,num_of_hosts -1,0);//(int)simTime().dbl()*getSimulation()->getEventNumber()%117);
     Packet * regularmessage = new Packet("regular message");
     regularmessage -> setSrcAddr(myAddress);
-    regularmessage->setDestAddr(j);
+    regularmessage -> setDestAddr(j);
     regularmessage -> setPacketType(message);
     regularmessage -> setBitLength((int64_t) 12000);//1500Bytes as Ethernet protocol MTU suggest
     regularmessage -> setHopCount(0);

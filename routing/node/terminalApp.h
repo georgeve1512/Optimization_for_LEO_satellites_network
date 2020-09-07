@@ -22,31 +22,42 @@ using namespace omnetpp;
 enum selfMessageTypes{
     interArrivalTime,
     selfPositionUpdateTime,
-    satellitePositionUpdateTime
+    mainSatellitePositionUpdateTime,
+    subSatellitePositionUpdateTime
+};
+enum modes{
+    main,
+    sub
 };
 
-
 /**
- * TODO - Generated class
+ * Terminal's basic application. 07.09.2020 - Only sends UDP data to a random terminal
  */
 
 class TerminalApp : public cSimpleModule
 {
     public:
         ~TerminalApp();
-        int getConnectedSatelliteAddress() {return isConnected ? satAddress : -1;};
+
+        // Auxiliary functions
+        int getConnectedSatelliteAddress();
+        void updatePosition(cDisplayString *cDispStr, double &posX, double &posY);
+        double getDistanceFromSatellite(int satAddress);
     protected:
         // Simulation helpers
-        double updateInterval;      // Time to update position
-        cMessage *appMsg;           // Reduce memory allocations
-        cMessage *updateMyPositionMsg; // Reduce memory allocations
-        cMessage *updateSatellitePositionMsg; // Reduce memory allocations
+        cMessage *appMsg;                         // Reduce memory allocations
+        cMessage *updateMyPositionMsg;            // Reduce memory allocations
+        cMessage *updateMainSatellitePositionMsg; // Reduce memory allocations
+        cMessage *updateSubSatellitePositionMsg;  // Reduce memory allocations
 
         // Simulation parameters
         int myAddress;              // UID
         int numOfTerminals;         // How many terminals are
         double radius;              // Coverage radius
+        double thresholdRadius;     // Threshold to look for a sub satellite.
+                                    // TODO - is [radius] - 2*(12000/R)*[c=3*10^8 m/s] a good threshold?
         int *indexList;             // For actual uniform choice between terminals (And not Geometric)
+        int numOfSatellites;        // Number of satellites in simulation
 
         // Volatile Random Numbers - Expression is re-evaluated when reading value
         cPar *sendIATime;
@@ -59,14 +70,27 @@ class TerminalApp : public cSimpleModule
         cDisplayString *myDispStr;  // Self's display string to extract (X,Y) position
         double myPosX;              // Self's X coordinate, extracted in meters ([m])
         double myPosY;              // Self's Y coordinate, extracted in meters ([m])
+        double updateInterval;      // Time to update position
 
-        // Connected satellite information
-        bool isConnected;           // Connection status
-        int satAddress;             // Connected satellite's address
-        cDisplayString *satDispStr; // Satellite's display string to extract (X,Y) position
-        double satPosX;             // Satellite's X coordinate
-        double satPosY;             // Satellite's X coordinate
-        double satUpdateInterval;   // Time between satellite's position updates
+        //// Connected satellite information
+        int isConnected;            // Connection status, determines how many active satellite connections the terminal has (max 2)
+                                    // Note that if [isConnected]==1, then the connection is main
+
+        // Main Satellite
+        int mainSatAddress;             // Connected main satellite's address
+        cDisplayString *mainSatDispStr; // Main satellite's display string to extract (X,Y) position
+        double mainSatPosX;             // Main satellite's X coordinate
+        double mainSatPosY;             // Main satellite's Y coordinate
+        double mainSatUpdateInterval;   // Time between main satellite's position updates
+        int mainConnectionIndex;        // Index inside main satellite's connection array, send in 0sec (simulation helper)
+
+        // Sub Satellite
+        int subSatAddress;             // Connected sub ssatellite's address
+        cDisplayString *subSatDispStr; // Sub satellite's display string to extract (X,Y) position
+        double subSatPosX;             // Sub satellite's X coordinate
+        double subSatPosY;             // Sub satellite's Y coordinate
+        double subSatUpdateInterval;   // Time between sub satellite's position updates
+        int subConnectionIndex;        // Index inside sub satellite's connection array, send in 0sec (simulation helper)
 
         // For statistics
         int numSent;
@@ -78,15 +102,12 @@ class TerminalApp : public cSimpleModule
         virtual void handleMessage(cMessage *msg) override;
         virtual void finish() override;
 
-        // Auxiliary functions
-        void updatePosition(cDisplayString *cDispStr, double &posX, double &posY);
-
         // Satellite connectivity
-        bool canConnectToSatellite(int satAddress);
-        bool checkConnection();
+        bool checkConnection(int mode);
+        void resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex);
 
         // Sending connection messages
-        void connectToSatellite(int satAddress);
+        void connectToSatellite(int satAddress, int mode);
         void disconnectFromSatellite();
 };
 

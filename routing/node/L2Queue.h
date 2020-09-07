@@ -22,6 +22,7 @@ enum last_routin {
     message = 25,
     load_balance_reset = 26,
     //load balancer
+    //TODO: might be buggy when number of nodes is greater than 25
     hot_potato = 27,
     ping_app = 28,
     ping_ping = 29,
