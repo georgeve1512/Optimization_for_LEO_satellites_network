@@ -17,6 +17,7 @@
 #define __ROUTING_TERMINALAPP_H_
 
 #include <omnetpp.h>
+#include "Routing.h" // For enums
 
 using namespace omnetpp;
 enum selfMessageTypes{
@@ -25,10 +26,7 @@ enum selfMessageTypes{
     mainSatellitePositionUpdateTime,
     subSatellitePositionUpdateTime
 };
-enum modes{
-    main,
-    sub
-};
+
 
 /**
  * Terminal's basic application. 07.09.2020 - Only sends UDP data to a random terminal

@@ -2,8 +2,9 @@
 
 package node;
 import inet.mobility.contract.IMobility;
+import inet.mobility.single.TurtleMobility;
+import inet.mobility.static.StaticGridMobility;
 
-//import inet.visualizer.integrated.IntegratedVisualizer;
 
 //import inet.visualizer.integrated.IntegratedMultiVisualizer;
 //
@@ -20,7 +21,6 @@ module Node
         int load_threshold = default(90);
         int m_var;
         int frameCapacity = default(1000); // Queue Size :max number of packets; 0 means no limit
-        //lll : num of nodes
         int num_of_satellite = default(25);
         int changeRate @unit(s) = default(30s);
         bool load_balance_mode = default(true);
@@ -46,7 +46,6 @@ module Node
             parameters:
                 @display("p=140,109");
             gates:
-                //                out[sizeof(port)];
                 in[sizeof(port)];
                 out[sizeof(port)];
         }
@@ -54,19 +53,15 @@ module Node
             parameters:
                 @display("p=65,155,row");
         }
-        mobility: <mobilityType> like IMobility {
-//                parameters:
-//                    
-//                @display("p=310,60");
-
-            @display("p=140,233");
+        //        mobility: <mobilityType> like IMobility {
+        //            @display("p=140,233");
+        //        }
+        grid: StaticGridMobility {
+            @display("p=45,233");
         }
-    //// 		visualizer: IntegratedVisualizer {
-    ////            @display("p=47,39");
-    ////        }
-    //		mobiliy: <mobilityType> like SuperpositioningMobility {
-    //		    @display("p=310,60");
-    //		} 
+        mobility: TurtleMobility {
+            @display("p=116,233");
+        }
     connections:
         routing.localOut --> app.in;
         routing.localIn <-- app.out;

@@ -14,7 +14,6 @@
 // 
 
 #include "terminalApp.h"
-#include "Routing.h" // For enums
 
 Define_Module(TerminalApp);
 /************************************************************************************************************************************/
@@ -130,8 +129,9 @@ void TerminalApp::initialize()
 
     // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
-    updateInterval = getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
+    //updateInterval = getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
     updatePosition(myDispStr, myPosX, myPosY);
+    std::cout << "Terminal " << myAddress << " pos: (" << myPosX << ", " << myPosY << ")" << endl;
 
     // Initialize satellite database
     isConnected = 0;
@@ -139,8 +139,9 @@ void TerminalApp::initialize()
     resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
 
     // Initialize satellite connection - connect to closest satellite as main
+    // TODO: move after initialize...
     double minDistance = DBL_MAX;
-    int satAddress;
+    int satAddress = -1;
     bool foundMin;
     for(int i = 0; i < numOfSatellites; i++){
         double dist = getDistanceFromSatellite(i);
@@ -150,12 +151,17 @@ void TerminalApp::initialize()
             foundMin = true;
         }
     }
+
     if (foundMin){
+        std::cout << "Terminal " << myAddress << " can connect to " << satAddress << " dist=" << minDistance << endl;
+
+        /*
         // Complete connection
         // TODO: Might want to combine everything here to [connectToSatellite]. Remember to check is message exists or not
         connectToSatellite(satAddress, main);
         updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Time Message", mainSatellitePositionUpdateTime);
         scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
+        */
     }
 
     appMsg = new cMessage("Inter Arrival Time Self Message", interArrivalTime);
@@ -194,6 +200,8 @@ void TerminalApp::handleMessage(cMessage *msg)
                 }
                 else{
                     EV << "Terminal " << myAddress << " is not connected to any satellite, retrying to send app data later" << endl;
+                    if (hasGUI())
+                        getParentModule()->bubble("Not connected!");
                 }
 
 
@@ -258,7 +266,55 @@ void TerminalApp::handleMessage(cMessage *msg)
             }
             case terminal_index_assign:{
                 //// Assign index from a satellite
-                // TODO: Complete handshake, might want to increase [isConnected] here
+
+                // TODO: Complete handshake
+                if (terMsg->getSrcAddr() != -1){
+                    //Satellite found an open gate for me
+
+                    switch (terMsg->getDestAddr()){
+                        case main:{
+                            isConnected = 1;
+
+                            if (!updateMainSatellitePositionMsg){
+                                // First time connected to any satellite
+                                updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Self Message",mainSatellitePositionUpdateTime);
+                            }
+
+                            // TODO: get exact time for position update + 0.01 and schedule position update
+                            // TODO: scheduleAt()
+
+                            break;
+                        }
+                        case sub:{
+                            isConnected = 2;
+
+                            if (!updateSubSatellitePositionMsg){
+                                // First time connected to any satellite
+                                updateSubSatellitePositionMsg = new cMessage("Sub Satellite Position Update Self Message",subSatellitePositionUpdateTime);
+                            }
+
+                            // TODO: get exact time for position update + 0.01 and schedule position update
+                            // TODO: scheduleAt()
+
+                            break;
+                        }
+                    }
+                }
+                else{
+                    // Satellite didn't have an open slot
+
+                    // Delete satellite data
+                    switch (terMsg->getDestAddr()){
+                        case main:{
+                            resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex);
+                            break;
+                        }
+                        case sub:{
+                            resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
+                            break;
+                        }
+                    }
+                }
                 break;
             }
             case terminal_list:
@@ -306,7 +362,6 @@ void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr
 
 void TerminalApp::connectToSatellite(int satAddress, int mode){
     /* Updates local database and send connection message to the satellite.
-     * Increases [isConnected] by 1.
      * */
 
     switch (mode){
@@ -327,7 +382,7 @@ void TerminalApp::connectToSatellite(int satAddress, int mode){
     }
 
     // TODO: Connection handshake start - send terminal_connection to satellite
-    isConnected++;
+    // Kind = 1, destination = {main, sub} [mode],
 }
 
 void TerminalApp::disconnectFromSatellite(){

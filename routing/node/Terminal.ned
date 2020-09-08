@@ -22,7 +22,7 @@ module Terminal
         int address;
         int hops = default(2);
         int num_of_terminals = default(2);
-        double radius @unit(m) = default(100m);
+        double radius @unit(m) = default(1000m);
         
         string mobilityType;
         
@@ -30,7 +30,7 @@ module Terminal
         @signal[check](type="long");
         @statistic[coordX](title="coord X"; source="xCoord(mobilityPos(mobilityStateChanged))"; record=vector; interpolationmode=linear);
         @statistic[coordY](title="coord Y"; source="yCoord(mobilityPos(mobilityStateChanged))"; record=vector; interpolationmode=linear);
-        @display("i=device/antennatower;bgb=129,100");
+        @display("i=device/antennatower;bgb=129,100;r=$radius");
     gates:
         input mainIn;
         output mainOut;
@@ -40,12 +40,13 @@ module Terminal
         app: TerminalApp {
             parameters:
                 address = address;
+                numOfTerminals = num_of_terminals;
                 @display("p=37,44");
         }
         mobility: <mobilityType> like IMobility {
             @display("p=89,44");
         }
-    connections:
+    connections allowunconnected:
         //mainIn --> app.mainIn;
         //app.mainOut --> mainOut;
 		//subIn --> app.subIn;

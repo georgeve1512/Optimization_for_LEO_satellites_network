@@ -1,0 +1,706 @@
+file 274320 1599586962                                          
+version 2
+run NetK-0-20200908-19:42:31-6016
+attr configname NetK
+attr datetime 20200908-19:42:31
+attr experiment NetK
+attr inifile omnetpp.ini
+attr iterationvars "$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true"
+attr iterationvarsf seed=1,alpha=5,mVar=5,LB=true,LinkPre=true-
+attr measurement "$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true"
+attr network networks.NetK
+attr processid 6016
+attr repetition 0
+attr replication #0
+attr resultdir results
+attr runnumber 0
+attr seedset 1
+itervar LB true
+itervar LinkPre true
+itervar alpha 5
+itervar mVar 5
+itervar seed 1
+param **.num_of_hosts 25
+param **.num_of_terminals 2
+param **.hasApp false
+param *.rte[*].grid.numHosts 25
+param *.rte[*].grid.constraintAreaMaxX 10000m
+param *.rte[*].grid.constraintAreaMaxY 10000m
+param *.rte[*].grid.constraintAreaMaxZ 0
+param *.rte[*].grid.constraintAreaMinX 0m
+param *.rte[*].grid.constraintAreaMinY 0m
+param *.rte[*].grid.constraintAreaMinZ 0
+param *.rte[*].mobility.typename "\"TurtleMobility\""
+param *.rte[*].mobilityType "\"TurtleMobility\""
+param *.rte[*].mobility.constraintAreaMaxX 10000m
+param *.rte[*].mobility.constraintAreaMaxY 10000m
+param *.rte[*].mobility.constraintAreaMaxZ 0
+param *.rte[*].mobility.constraintAreaMinX 0m
+param *.rte[*].mobility.constraintAreaMinY 0m
+param *.rte[*].mobility.constraintAreaMinZ 0
+param *.rte[0].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='0']\")"
+param *.rte[1].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='1']\")"
+param *.rte[2].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='2']\")"
+param *.rte[3].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='3']\")"
+param *.rte[4].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='4']\")"
+param *.rte[5].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='5']\")"
+param *.rte[6].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='6']\")"
+param *.rte[7].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='7']\")"
+param *.rte[8].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='8']\")"
+param *.rte[9].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='9']\")"
+param *.rte[10].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='10']\")"
+param *.rte[11].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='11']\")"
+param *.rte[12].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='12']\")"
+param *.rte[13].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='13']\")"
+param *.rte[14].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='14']\")"
+param *.rte[15].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='15']\")"
+param *.rte[16].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='16']\")"
+param *.rte[17].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='17']\")"
+param *.rte[18].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='18']\")"
+param *.rte[19].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='19']\")"
+param *.rte[20].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='20']\")"
+param *.rte[21].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='21']\")"
+param *.rte[22].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='22']\")"
+param *.rte[23].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='23']\")"
+param *.rte[24].mobility.turtleScript "xmldoc(\"mobility.xml\", \"movements//movement[@id='24']\")"
+param *.terminal[*].mobility.typename "\"StationaryMobility\""
+param *.terminal[*].mobilityType "\"StationaryMobility\""
+param *.terminal[*].mobility.constraintAreaMaxX 10000m
+param *.terminal[*].mobility.constraintAreaMaxY 10000m
+param *.terminal[*].mobility.constraintAreaMaxZ 0
+param *.terminal[*].mobility.constraintAreaMinX 0m
+param *.terminal[*].mobility.constraintAreaMinY 0m
+param *.terminal[*].mobility.constraintAreaMinZ 0
+param **.alpha 5
+param **.m_var 5
+param **.changeRate 25s
+param **.rte[*].app.packetLength "1500 bytes"
+param **.rte[*].app.sendIaTime exponential(150ms)
+param **.rte[*].app.burst_next_event exponential(25s)
+param **.rte[*].app.burst_next_interval exponential(40ms)
+param **.rte[*].app.burst_size "intuniform (80,320)"
+param **.rte[*].frameCapacity 7000
+param **.datarate 5Mbps
+param **.load_balance_mode true
+param **.load_balance_link_prediction true
+param **.load_threshold 85
+param **.rte[*].appType "\"App\""
+param **.rte[*].mobility.element[0].typename "\"StaticGridMobility\""
+param **.rte[*].mobility.element[0].subjectModule "\"^\""
+param **.rte[*].mobility.updateDisplayString false
+param **.rte[*].mobility.element[*].updateDisplayString false
+param **.rte[*].mobility.element[0].separationX 50m
+param **.rte[*].mobility.element[0].separationY 50m
+param **.rte[*].mobility.element[0].constraintAreaMinX 0m
+param **.rte[*].mobility.element[0].constraintAreaMinY 0m
+param **.rte[*].mobility.element[0].constraintAreaMinZ 0m
+param **.rte[*].mobility.element[0].constraintAreaMaxX 1500m
+param **.rte[*].mobility.element[0].constraintAreaMaxY 1000m
+param **.rte[*].mobility.element[0].constraintAreaMaxZ 0m
+
+vector 0 NetK.rte[0] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 1 NetK.rte[0] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 2 NetK.rte[1] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 3 NetK.rte[1] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 4 NetK.rte[2] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 5 NetK.rte[2] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 6 NetK.rte[3] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 7 NetK.rte[3] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 8 NetK.rte[4] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 9 NetK.rte[4] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 10 NetK.rte[5] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 11 NetK.rte[5] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 12 NetK.rte[6] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 13 NetK.rte[6] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 14 NetK.rte[7] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 15 NetK.rte[7] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 16 NetK.rte[8] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 17 NetK.rte[8] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 18 NetK.rte[9] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 19 NetK.rte[9] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 20 NetK.rte[10] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 21 NetK.rte[10] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 22 NetK.rte[11] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 23 NetK.rte[11] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 24 NetK.rte[12] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 25 NetK.rte[12] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 26 NetK.rte[13] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 27 NetK.rte[13] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 28 NetK.rte[14] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 29 NetK.rte[14] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 30 NetK.rte[15] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 31 NetK.rte[15] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 32 NetK.rte[16] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 33 NetK.rte[16] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 34 NetK.rte[17] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 35 NetK.rte[17] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 36 NetK.rte[18] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 37 NetK.rte[18] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 38 NetK.rte[19] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 39 NetK.rte[19] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 40 NetK.rte[20] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 41 NetK.rte[20] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 42 NetK.rte[21] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 43 NetK.rte[21] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 44 NetK.rte[22] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 45 NetK.rte[22] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 46 NetK.rte[23] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 47 NetK.rte[23] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 48 NetK.rte[24] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 49 NetK.rte[24] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 50 NetK.terminal[0] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 51 NetK.terminal[0] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 52 NetK.terminal[1] coordX:vector ETV
+attr interpolationmode linear
+attr source xCoord(mobilityPos(mobilityStateChanged))
+attr title "coord X, vector"
+vector 53 NetK.terminal[1] coordY:vector ETV
+attr interpolationmode linear
+attr source yCoord(mobilityPos(mobilityStateChanged))
+attr title "coord Y, vector"
+vector 54 NetK.rte[0].queue[2] Throughput ETV
+vector 55 NetK.rte[0].queue[0] Throughput ETV
+vector 56 NetK.rte[4].queue[0] Throughput ETV
+vector 57 NetK.rte[1].queue[4] Throughput ETV
+vector 58 NetK.rte[3].queue[1] Throughput ETV
+vector 59 NetK.rte[3].queue[5] Throughput ETV
+vector 60 NetK.rte[3].queue[2] Throughput ETV
+vector 61 NetK.rte[3].queue[4] Throughput ETV
+vector 62 NetK.rte[3].queue[3] Throughput ETV
+vector 63 NetK.rte[7].queue[4] Throughput ETV
+vector 64 NetK.rte[7].queue[0] Throughput ETV
+vector 65 NetK.rte[7].queue[2] Throughput ETV
+vector 66 NetK.rte[7].queue[1] Throughput ETV
+vector 67 NetK.rte[7].queue[3] Throughput ETV
+vector 68 NetK.rte[4].queue[2] Throughput ETV
+vector 69 NetK.rte[22].queue[3] Throughput ETV
+vector 70 NetK.rte[8].queue[1] Throughput ETV
+vector 71 NetK.rte[1].queue[0] Throughput ETV
+vector 72 NetK.rte[8].queue[0] Throughput ETV
+vector 73 NetK.rte[6].queue[4] Throughput ETV
+vector 74 NetK.rte[12].queue[1] Throughput ETV
+vector 75 NetK.rte[2].queue[0] Throughput ETV
+vector 76 NetK.rte[0].queue[0] Size ETV
+vector 77 NetK.rte[4].queue[0] Size ETV
+vector 78 NetK.rte[1].queue[4] Size ETV
+vector 79 NetK.rte[4].queue[2] Size ETV
+vector 80 NetK.rte[22].queue[3] Size ETV
+vector 81 NetK.rte[8].queue[1] Size ETV
+vector 82 NetK.rte[1].queue[0] Size ETV
+vector 83 NetK.rte[8].queue[0] Size ETV
+vector 84 NetK.rte[6].queue[4] Size ETV
+vector 85 NetK.rte[12].queue[1] Size ETV
+vector 86 NetK.rte[2].queue[0] Size ETV
+vector 87 NetK.rte[4].queue[1] Throughput ETV
+vector 88 NetK.rte[9].queue[5] Throughput ETV
+vector 89 NetK.rte[23].queue[2] Throughput ETV
+vector 90 NetK.rte[2].queue[3] Throughput ETV
+vector 91 NetK.rte[6].queue[1] Throughput ETV
+vector 92 NetK.rte[9].queue[1] Throughput ETV
+vector 93 NetK.rte[8].queue[2] Throughput ETV
+vector 94 NetK.rte[8].queue[3] Throughput ETV
+vector 95 NetK.rte[8].queue[5] Throughput ETV
+vector 96 NetK.rte[9].queue[0] Throughput ETV
+vector 97 NetK.rte[13].queue[1] Throughput ETV
+vector 98 NetK.rte[3].queue[3] Size ETV
+vector 99 NetK.rte[7].queue[0] Size ETV
+vector 100 NetK.rte[4].queue[1] Size ETV
+vector 101 NetK.rte[9].queue[5] Size ETV
+vector 102 NetK.rte[23].queue[2] Size ETV
+vector 103 NetK.rte[2].queue[3] Size ETV
+vector 104 NetK.rte[6].queue[1] Size ETV
+vector 105 NetK.rte[9].queue[1] Size ETV
+vector 106 NetK.rte[9].queue[0] Size ETV
+vector 107 NetK.rte[13].queue[1] Size ETV
+vector 108 NetK.rte[4].queue[5] Throughput ETV
+vector 109 NetK.rte[22].queue[0] Throughput ETV
+vector 110 NetK.rte[9].queue[2] Throughput ETV
+vector 111 NetK.rte[1].queue[3] Throughput ETV
+vector 112 NetK.rte[12].queue[2] Throughput ETV
+vector 113 NetK.rte[14].queue[5] Throughput ETV
+vector 114 NetK.rte[17].queue[4] Throughput ETV
+vector 115 NetK.rte[21].queue[5] Throughput ETV
+vector 116 NetK.rte[3].queue[2] Size ETV
+vector 117 NetK.rte[4].queue[5] Size ETV
+vector 118 NetK.rte[22].queue[0] Size ETV
+vector 119 NetK.rte[1].queue[3] Size ETV
+vector 120 NetK.rte[12].queue[2] Size ETV
+vector 121 NetK.rte[14].queue[5] Size ETV
+vector 122 NetK.rte[17].queue[4] Size ETV
+vector 123 NetK.rte[21].queue[5] Size ETV
+vector 124 NetK.rte[1].queue[5] Throughput ETV
+vector 125 NetK.rte[14].queue[2] Throughput ETV
+vector 126 NetK.rte[14].queue[1] Throughput ETV
+vector 127 NetK.rte[5].queue[1] Throughput ETV
+vector 128 NetK.rte[17].queue[0] Throughput ETV
+vector 129 NetK.rte[5].queue[4] Throughput ETV
+vector 130 NetK.rte[11].queue[3] Throughput ETV
+vector 131 NetK.rte[13].queue[2] Throughput ETV
+vector 132 NetK.rte[13].queue[4] Throughput ETV
+vector 133 NetK.rte[14].queue[0] Throughput ETV
+vector 134 NetK.rte[12].queue[4] Throughput ETV
+vector 135 NetK.rte[6].queue[0] Throughput ETV
+vector 136 NetK.rte[3].queue[1] Size ETV
+vector 137 NetK.rte[7].queue[2] Size ETV
+vector 138 NetK.rte[1].queue[5] Size ETV
+vector 139 NetK.rte[14].queue[2] Size ETV
+vector 140 NetK.rte[14].queue[1] Size ETV
+vector 141 NetK.rte[5].queue[1] Size ETV
+vector 142 NetK.rte[17].queue[0] Size ETV
+vector 143 NetK.rte[5].queue[4] Size ETV
+vector 144 NetK.rte[11].queue[3] Size ETV
+vector 145 NetK.rte[14].queue[0] Size ETV
+vector 146 NetK.rte[12].queue[4] Size ETV
+vector 147 NetK.rte[6].queue[0] Size ETV
+vector 148 NetK.rte[22].queue[5] Throughput ETV
+vector 149 NetK.rte[12].queue[3] Throughput ETV
+vector 150 NetK.rte[9].queue[4] Throughput ETV
+vector 151 NetK.rte[0].queue[2] Size ETV
+vector 152 NetK.rte[3].queue[4] Size ETV
+vector 153 NetK.rte[13].queue[4] Size ETV
+vector 154 NetK.rte[22].queue[5] Size ETV
+vector 155 NetK.rte[12].queue[3] Size ETV
+vector 156 NetK.rte[9].queue[4] Size ETV
+vector 157 NetK.rte[12].queue[5] Throughput ETV
+vector 158 NetK.rte[14].queue[4] Throughput ETV
+vector 159 NetK.rte[7].queue[1] Size ETV
+vector 160 NetK.rte[8].queue[5] Size ETV
+vector 161 NetK.rte[12].queue[5] Size ETV
+vector 162 NetK.rte[14].queue[4] Size ETV
+vector 163 NetK.rte[15].queue[1] Throughput ETV
+vector 164 NetK.rte[17].queue[2] Throughput ETV
+vector 165 NetK.rte[17].queue[5] Throughput ETV
+vector 166 NetK.rte[4].queue[4] Throughput ETV
+vector 167 NetK.rte[7].queue[4] Size ETV
+vector 168 NetK.rte[9].queue[2] Size ETV
+vector 169 NetK.rte[15].queue[1] Size ETV
+vector 170 NetK.rte[17].queue[2] Size ETV
+vector 171 NetK.rte[17].queue[5] Size ETV
+vector 172 NetK.rte[4].queue[4] Size ETV
+vector 173 NetK.rte[22].queue[1] Throughput ETV
+vector 174 NetK.rte[15].queue[2] Throughput ETV
+vector 175 NetK.rte[21].queue[3] Throughput ETV
+vector 176 NetK.rte[7].queue[3] Size ETV
+vector 177 NetK.rte[8].queue[2] Size ETV
+vector 178 NetK.rte[8].queue[3] Size ETV
+vector 179 NetK.rte[22].queue[1] Size ETV
+vector 180 NetK.rte[15].queue[2] Size ETV
+vector 181 NetK.rte[21].queue[3] Size ETV
+vector 182 NetK.rte[15].queue[5] Throughput ETV
+vector 183 NetK.rte[15].queue[5] Size ETV
+vector 184 NetK.rte[23].queue[1] Throughput ETV
+vector 185 NetK.rte[23].queue[1] Size ETV
+vector 186 NetK.rte[17].queue[3] Throughput ETV
+vector 187 NetK.rte[3].queue[5] Size ETV
+vector 188 NetK.rte[17].queue[3] Size ETV
+vector 189 NetK.rte[13].queue[2] Size ETV
+vector 190 NetK.rte[23].queue[5] Throughput ETV
+vector 191 NetK.rte[23].queue[5] Size ETV
+0	20294 95 0 1905 0 0.299892062 6 1000 1000 6000 6000000
+1	20389 103 0 1905 0 0.299892062 6 1000 1014.9946031 6029.9946031 6060339.0443221
+2	20492 95 0 1905 0 0.299892062 6 3000 3000 18000 54000000
+3	20587 103 0 1905 0 0.299892062 6 1000 1014.9946031 6029.9946031 6060339.0443221
+4	20690 95 0 1905 0 0.299892062 6 5000 5000 30000 150000000
+5	20785 103 0 1905 0 0.299892062 6 1000 1014.9946031 6029.9946031 6060339.0443221
+6	20888 95 0 1905 0 0.299892062 6 7000 7000 42000 294000000
+7	20983 103 0 1905 0 0.299892062 6 1000 1014.9946031 6029.9946031 6060339.0443221
+8	21086 95 0 1905 0 0.299892062 6 9000 9000 54000 486000000
+9	21181 103 0 1905 0 0.299892062 6 1000 1014.9946031 6029.9946031 6060339.0443221
+10	21284 101 0 1905 0 0.299892062 6 1000 1000 6000 6000000
+11	21385 109 0 1905 0 0.299892062 6 3000 3014.9946031 18029.9946031 54180317.456722
+12	21494 101 0 1905 0 0.299892062 6 3000 3000 18000 54000000
+13	21595 109 0 1905 0 0.299892062 6 3000 3014.9946031 18029.9946031 54180317.456722
+14	21704 101 0 1905 0 0.299892062 6 5000 5000 30000 150000000
+15	21805 109 0 1905 0 0.299892062 6 3000 3014.9946031 18029.9946031 54180317.456722
+16	21914 101 0 1905 0 0.299892062 6 7000 7000 42000 294000000
+17	22015 109 0 1905 0 0.299892062 6 3000 3014.9946031 18029.9946031 54180317.456722
+18	22124 101 0 1905 0 0.299892062 6 9000 9000 54000 486000000
+19	22225 109 0 1905 0 0.299892062 6 3000 3014.9946031 18029.9946031 54180317.456722
+20	22334 101 0 1905 0 0.299892062 6 1000 1000 6000 6000000
+21	22435 109 0 1905 0 0.299892062 6 5000 5014.9946031 30029.9946031 150300295.86912
+22	22544 101 0 1905 0 0.299892062 6 3000 3000 18000 54000000
+23	22645 109 0 1905 0 0.299892062 6 5000 5014.9946031 30029.9946031 150300295.86912
+24	22754 101 0 1905 0 0.299892062 6 5000 5000 30000 150000000
+25	22855 109 0 1905 0 0.299892062 6 5000 5014.9946031 30029.9946031 150300295.86912
+26	22964 101 0 1905 0 0.299892062 6 7000 7000 42000 294000000
+27	23065 109 0 1905 0 0.299892062 6 5000 5014.9946031 30029.9946031 150300295.86912
+28	23174 101 0 1905 0 0.299892062 6 9000 9000 54000 486000000
+29	23275 109 0 1905 0 0.299892062 6 5000 5014.9946031 30029.9946031 150300295.86912
+30	23384 101 0 1905 0 0.299892062 6 1000 1000 6000 6000000
+31	23485 109 0 1905 0 0.299892062 6 7000 7014.9946031 42029.9946031 294420274.28152
+32	23594 101 0 1905 0 0.299892062 6 3000 3000 18000 54000000
+33	23695 109 0 1905 0 0.299892062 6 7000 7014.9946031 42029.9946031 294420274.28152
+34	23804 101 0 1905 0 0.299892062 6 5000 5000 30000 150000000
+35	23905 109 0 1905 0 0.299892062 6 7000 7014.9946031 42029.9946031 294420274.28152
+36	24014 101 0 1905 0 0.299892062 6 7000 7000 42000 294000000
+37	24115 109 0 1905 0 0.299892062 6 7000 7014.9946031 42029.9946031 294420274.28152
+38	24224 101 0 1905 0 0.299892062 6 9000 9000 54000 486000000
+39	24325 109 0 1905 0 0.299892062 6 7000 7014.9946031 42029.9946031 294420274.28152
+40	24434 101 0 1905 0 0.299892062 6 1000 1000 6000 6000000
+41	24535 109 0 1905 0 0.299892062 6 9000 9014.9946031 54029.9946031 486540252.69392
+42	24644 101 0 1905 0 0.299892062 6 3000 3000 18000 54000000
+43	24745 109 0 1905 0 0.299892062 6 9000 9014.9946031 54029.9946031 486540252.69392
+44	24854 101 0 1905 0 0.299892062 6 5000 5000 30000 150000000
+45	24955 109 0 1905 0 0.299892062 6 9000 9014.9946031 54029.9946031 486540252.69392
+46	25064 101 0 1905 0 0.299892062 6 7000 7000 42000 294000000
+47	25165 109 0 1905 0 0.299892062 6 9000 9014.9946031 54029.9946031 486540252.69392
+48	25274 101 0 1905 0 0.299892062 6 9000 9000 54000 486000000
+49	25375 109 0 1905 0 0.299892062 6 9000 9014.9946031 54029.9946031 486540252.69392
+50	25484 23 0 0 0 0 1 3609.418515116 3609.418515116 3609.418515116 13027902.017262
+51	25507 24 0 0 0 0 1 5899.5129470713 5899.5129470713 5899.5129470713 34804253.012662
+52	25531 24 0 0 0 0 1 7872.6344672032 7872.6344672032 7872.6344672032 61978373.454195
+53	25555 24 0 0 0 0 1 2641.5360230021 2641.5360230021 2641.5360230021 6977712.5608178
+54	25579 110 2 503 0 0.0096 5 0.5 1 4 3.3888888888889
+55	25689 10 6 6 0 0 1 1 1 1 1
+56	25699 11 35 35 0 0 1 1 1 1 1
+57	25710 11 36 36 0 0 1 1 1 1 1
+58	25721 66 41 357 0 0.0072 4 0.6 1 3.4 3
+59	25787 348 42 1045 0 0.0264 12 0.27272727272727 1 7.8991841491841 5.9009327405306
+60	26135 48 47 262 0 0.0048 3 0.75 1 2.75 2.5625
+61	26183 111 49 506 0 0.0096 5 0.5 1 4 3.3888888888889
+62	26294 28 63 149 0 0.0024 2 1 1 2 2
+63	26322 159 65 731 0 0.0144 7 0.5 1 5.6428571428571 4.8214285714286
+64	26481 62 67 488 0 0.0072 4 1 1 4 4
+65	26543 66 68 362 0 0.0072 4 0.6 1 3.4 3
+66	26609 142 69 617 0 0.012 6 0.5 1 4.8571428571429 4.1235827664399
+67	26751 219 75 816 0 0.0168 8 0.33333333333333 1 5.6666666666667 4.4567901234568
+68	26970 62 109 721 0 0.012 4 1 1 4 4
+69	27032 47 110 1001 0 0.0216 3 1 1 3 3
+70	27079 141 111 620 0 0.012 6 0.57142857142857 1 5.1428571428571 4.5714285714286
+71	27220 12 112 112 0 0 1 1 1 1 1
+72	27232 65 113 367 0 0.0072 4 0.8 1 3.8 3.64
+73	27297 12 114 114 0 0 1 1 1 1 1
+74	27309 114 115 1278 0 0.0432 7 1 1 7 7
+75	27423 12 130 130 0 0 1 1 1 1 1
+76	27435 17 142 142 0.0024 0.0024 1 0 0 0 0
+77	27452 17 143 143 0.0024 0.0024 1 0 0 0 0
+78	27469 17 144 144 0.0024 0.0024 1 0 0 0 0
+79	27486 67 155 753 0.0024 0.0144 4 0 0 0 0
+80	27553 51 156 1020 0.0024 0.024 3 0 0 0 0
+81	27604 34 157 735 0.0024 0.0144 2 0 0 0 0
+82	27638 17 158 158 0.0024 0.0024 1 0 0 0 0
+83	27655 34 159 513 0.0024 0.0096 2 0 0 0 0
+84	27689 17 160 160 0.0024 0.0024 1 0 0 0 0
+85	27706 121 161 1290 0.0024 0.0456 7 0 0 0 0
+86	27827 17 162 162 0.0024 0.0024 1 0 0 0 0
+87	27844 84 185 624 0.0024 0.012 5 1 1 5 5
+88	27928 86 187 1331 0.0024 0.0504 5 1 1 5 5
+89	28014 87 188 1262 0.0024 0.0408 5 1 1 5 5
+90	28101 17 189 189 0.0024 0.0024 1 1 1 1 1
+91	28118 51 190 574 0.0024 0.0096 3 1 1 3 3
+92	28169 17 203 203 0.0024 0.0024 1 1 1 1 1
+93	28186 135 206 817 0.0024 0.0168 7 0.375 1 5.125 4.109375
+94	28321 146 216 818 0.0024 0.0168 7 0.42857142857143 1 5.1785714285714 4.1524234693878
+95	28467 104 219 622 0.0024 0.012 5 0.75 1 4.3833333333333 3.8969444444444
+96	28571 314 240 1296 0.0024 0.0456 18 0.9 1 17.9 17.81
+97	28885 550 242 1305 0.0024 0.048 20 0.33333333333333 1 13.872103051747 10.685992237602
+98	29435 17 264 264 0.0048 0.0048 1 0 0 0 0
+99	29452 51 266 535 0.0048 0.0096 3 0 0 0 0
+100	29503 54 270 739 0.0048 0.0144 3 0 0 0 0
+101	29557 74 272 1339 0.0048 0.0528 4 0 0 0 0
+102	29631 91 273 1273 0.0048 0.0432 5 0 0 0 0
+103	29722 18 274 274 0.0048 0.0048 1 0 0 0 0
+104	29740 53 275 632 0.0048 0.012 3 0 0 0 0
+105	29793 18 276 276 0.0048 0.0048 1 0 0 0 0
+106	29811 202 282 1307 0.0048 0.048 11 0 0 0 0
+107	30013 55 283 1326 0.0048 0.0504 3 0 0 0 0
+108	30068 129 315 1299 0.0048 0.0456 7 1 1 7 7
+109	30197 71 316 780 0.0048 0.0144 4 1 1 4 4
+110	30268 106 318 738 0.0048 0.0144 5 0.8 1 4.6333333333333 4.3344444444444
+111	30374 36 319 573 0.0048 0.0096 2 1 1 2 2
+112	30410 18 321 321 0.0048 0.0048 1 1 1 1 1
+113	30428 156 326 1064 0.0048 0.0264 7 0.71428571428571 1 6.5714285714286 6.2448979591837
+114	30584 18 348 348 0.0048 0.0048 1 1 1 1 1
+115	30602 18 349 349 0.0048 0.0048 1 1 1 1 1
+116	30620 18 359 359 0.0072 0.0072 1 0 0 0 0
+117	30638 109 371 1308 0.0072 0.048 6 0 0 0 0
+118	30747 72 372 827 0.0072 0.0168 4 0 0 0 0
+119	30819 35 374 631 0.0072 0.012 2 0 0 0 0
+120	30854 18 375 375 0.0072 0.0072 1 0 0 0 0
+121	30872 72 379 1090 0.0072 0.0288 4 0 0 0 0
+122	30944 18 380 380 0.0072 0.0072 1 0 0 0 0
+123	30962 18 381 381 0.0072 0.0072 1 0 0 0 0
+124	30980 72 414 1041 0.0072 0.024 4 1 1 4 4
+125	31052 90 421 1103 0.0072 0.0288 5 1 1 5 5
+126	31142 152 422 968 0.0072 0.0216 6 0.57142857142857 1 5.1428571428571 4.5714285714286
+127	31294 55 442 1113 0.0072 0.0288 3 1 1 3 3
+128	31349 18 443 443 0.0072 0.0072 1 1 1 1 1
+129	31367 36 444 597 0.0072 0.0096 2 1 1 2 2
+130	31403 54 445 1202 0.0072 0.036 3 1 1 3 3
+131	31457 301 447 1086 0.0072 0.0288 10 0.27272727272727 1 6.7272727272727 5.1404958677686
+132	31758 53 449 716 0.0072 0.012 3 1 1 3 3
+133	31811 438 486 1327 0.0072 0.0504 19 0.29411764705882 1 13.13739250086 10.191136187883
+134	32249 54 487 1032 0.0072 0.024 3 1 1 3 3
+135	32303 54 496 1038 0.0072 0.024 3 1 1 3 3
+136	32357 18 504 504 0.0096 0.0096 1 0 0 0 0
+137	32375 18 508 508 0.0096 0.0096 1 0 0 0 0
+138	32393 73 520 1053 0.0096 0.0264 4 0 0 0 0
+139	32466 55 524 1127 0.0096 0.0312 3 0 0 0 0
+140	32521 36 525 1015 0.0096 0.024 2 0 0 0 0
+141	32557 55 526 1131 0.0096 0.0312 3 0 0 0 0
+142	32612 18 527 527 0.0096 0.0096 1 0 0 0 0
+143	32630 35 528 638 0.0096 0.012 2 0 0 0 0
+144	32665 55 529 1220 0.0096 0.0384 3 0 0 0 0
+145	32720 54 533 1338 0.0096 0.0528 3 0 0 0 0
+146	32774 54 534 1051 0.0096 0.0264 3 0 0 0 0
+147	32828 55 536 1052 0.0096 0.0264 3 0 0 0 0
+148	32883 18 571 571 0.0096 0.0096 1 1 1 1 1
+149	32901 167 575 1227 0.0096 0.0384 9 1 1 9 9
+150	33068 36 598 946 0.0096 0.0192 2 1 1 2 2
+151	33104 17 613 613 0.012 0.012 1 0 0 0 0
+152	33121 17 615 615 0.012 0.012 1 0 0 0 0
+153	33138 35 629 752 0.012 0.0144 2 0 0 0 0
+154	33173 17 630 630 0.012 0.012 1 0 0 0 0
+155	33190 165 633 1246 0.012 0.0408 9 0 0 0 0
+156	33355 35 639 973 0.012 0.0216 2 0 0 0 0
+157	33390 72 665 1313 0.012 0.048 4 1 1 4 4
+158	33462 35 678 860 0.012 0.0168 2 1 1 2 2
+159	33497 18 732 732 0.0144 0.0144 1 0 0 0 0
+160	33515 18 737 737 0.0144 0.0144 1 0 0 0 0
+161	33533 74 743 1328 0.0144 0.0504 4 0 0 0 0
+162	33607 36 748 918 0.0144 0.0192 2 0 0 0 0
+163	33643 18 789 789 0.0144 0.0144 1 1 1 1 1
+164	33661 18 800 800 0.0144 0.0144 1 1 1 1 1
+165	33679 74 801 1164 0.0144 0.0336 4 1 1 4 4
+166	33753 129 802 1259 0.0144 0.0408 7 1 1 7 7
+167	33882 18 815 815 0.0168 0.0168 1 0 0 0 0
+168	33900 18 819 819 0.0168 0.0168 1 0 0 0 0
+169	33918 18 831 831 0.0168 0.0168 1 0 0 0 0
+170	33936 18 832 832 0.0168 0.0168 1 0 0 0 0
+171	33954 73 833 1188 0.0168 0.036 4 0 0 0 0
+172	34027 129 834 1272 0.0168 0.0432 7 0 0 0 0
+173	34156 73 857 1077 0.0168 0.0264 4 1 1 4 4
+174	34229 18 864 864 0.0168 0.0168 1 1 1 1 1
+175	34247 18 878 878 0.0168 0.0168 1 1 1 1 1
+176	34265 18 906 906 0.0192 0.0192 1 0 0 0 0
+177	34283 18 907 907 0.0192 0.0192 1 0 0 0 0
+178	34301 18 908 908 0.0192 0.0192 1 0 0 0 0
+179	34319 74 916 1094 0.0192 0.0288 4 0 0 0 0
+180	34393 18 920 920 0.0192 0.0192 1 0 0 0 0
+181	34411 18 922 922 0.0192 0.0192 1 0 0 0 0
+182	34429 18 947 947 0.0192 0.0192 1 1 1 1 1
+183	34447 18 974 974 0.0216 0.0216 1 0 0 0 0
+184	34465 36 998 1208 0.0216 0.036 2 1 1 2 2
+185	34501 37 1019 1222 0.024 0.0384 2 0 0 0 0
+186	34538 38 1074 1112 0.0264 0.0288 2 1 1 2 2
+187	34576 19 1085 1085 0.0288 0.0288 1 0 0 0 0
+188	34595 38 1093 1130 0.0288 0.0312 2 0 0 0 0
+189	34633 19 1123 1123 0.0312 0.0312 1 0 0 0 0
+190	34652 19 1171 1171 0.0336 0.0336 1 1 1 1 1
+191	34671 18 1191 1191 0.036 0.036 1 0 0 0 0
+vector 192 NetK.rte[0].queue[3] Throughput ETV
+vector 193 NetK.rte[20].queue[2] Throughput ETV
+vector 194 NetK.rte[24].queue[3] Throughput ETV
+vector 195 NetK.rte[5].queue[0] Throughput ETV
+0	34883 4585 1906 63178 0.3 25 250 1000 1000 250000 250000000
+1	39468 4603 1906 63178 0.3 25 250 1015 2250 408170.8517331 698339581.69344
+2	44071 4585 1907 63179 0.3 25 250 3000 3000 750000 2250000000
+3	48656 4603 1907 63179 0.3 25 250 1015 2250 408170.8517331 698339581.69344
+4	53259 4585 1908 63180 0.3 25 250 5000 5000 1250000 6250000000
+5	57844 4603 1908 63180 0.3 25 250 1015 2250 408170.8517331 698339581.69344
+6	62447 4585 1909 63181 0.3 25 250 7000 7000 1750000 12250000000
+7	67032 4603 1909 63181 0.3 25 250 1015 2250 408170.8517331 698339581.69344
+8	71635 4585 1910 63182 0.3 25 250 9000 9000 2250000 20250000000
+9	76220 4603 1910 63182 0.3 25 250 1015 2250 408170.8517331 698339581.69344
+10	80823 4835 1911 63183 0.3 25 250 1000 1000 250000 250000000
+11	85658 4853 1911 63183 0.3 25 250 3015 4250 908170.8517331 3331022988.6258
+12	90511 4835 1912 63184 0.3 25 250 3000 3000 750000 2250000000
+13	95346 4853 1912 63184 0.3 25 250 3015 4250 908170.8517331 3331022988.6258
+14	100199 4835 1913 63185 0.3 25 250 5000 5000 1250000 6250000000
+15	105034 4853 1913 63185 0.3 25 250 3015 4250 908170.8517331 3331022988.6258
+16	109887 4835 1914 63186 0.3 25 250 7000 7000 1750000 12250000000
+17	114722 4853 1914 63186 0.3 25 250 3015 4250 908170.8517331 3331022988.6258
+18	119575 4835 1915 63187 0.3 25 250 9000 9000 2250000 20250000000
+19	124410 4853 1915 63187 0.3 25 250 3015 4250 908170.8517331 3331022988.6258
+20	129263 4835 1916 63188 0.3 25 250 1000 1000 250000 250000000
+21	134098 4853 1916 63188 0.3 25 250 5015 6250 1408170.8517331 7963706395.5582
+22	138951 4835 1917 63189 0.3 25 250 3000 3000 750000 2250000000
+23	143786 4853 1917 63189 0.3 25 250 5015 6250 1408170.8517331 7963706395.5582
+24	148639 4835 1918 63190 0.3 25 250 5000 5000 1250000 6250000000
+25	153474 4853 1918 63190 0.3 25 250 5015 6250 1408170.8517331 7963706395.5582
+26	158327 4835 1919 63191 0.3 25 250 7000 7000 1750000 12250000000
+27	163162 4853 1919 63191 0.3 25 250 5015 6250 1408170.8517331 7963706395.5582
+28	168015 4835 1920 63192 0.3 25 250 9000 9000 2250000 20250000000
+29	172850 4853 1920 63192 0.3 25 250 5015 6250 1408170.8517331 7963706395.5582
+30	177703 4835 1921 63193 0.3 25 250 1000 1000 250000 250000000
+31	182538 4853 1921 63193 0.3 25 250 7015 8250 1908170.8517331 14596389802.491
+32	187391 4835 1922 63194 0.3 25 250 3000 3000 750000 2250000000
+33	192226 4853 1922 63194 0.3 25 250 7015 8250 1908170.8517331 14596389802.491
+34	197079 4835 1923 63195 0.3 25 250 5000 5000 1250000 6250000000
+35	201914 4853 1923 63195 0.3 25 250 7015 8250 1908170.8517331 14596389802.491
+36	206767 4835 1924 63196 0.3 25 250 7000 7000 1750000 12250000000
+37	211602 4853 1924 63196 0.3 25 250 7015 8250 1908170.8517331 14596389802.491
+38	216455 4835 1925 63197 0.3 25 250 9000 9000 2250000 20250000000
+39	221290 4853 1925 63197 0.3 25 250 7015 8250 1908170.8517331 14596389802.491
+40	226143 4835 1926 63198 0.3 25 250 1000 1000 250000 250000000
+41	230978 4784 1926 63198 0.3 25 250 5 10000 1908170.8517331 18101573209.423
+42	235762 4835 1927 63199 0.3 25 250 3000 3000 750000 2250000000
+43	240597 4784 1927 63199 0.3 25 250 5 10000 1908170.8517331 18101573209.423
+44	245381 4835 1928 63200 0.3 25 250 5000 5000 1250000 6250000000
+45	250216 4784 1928 63200 0.3 25 250 5 10000 1908170.8517331 18101573209.423
+46	255000 4835 1929 63201 0.3 25 250 7000 7000 1750000 12250000000
+47	259835 4784 1929 63201 0.3 25 250 5 10000 1908170.8517331 18101573209.423
+48	264619 4835 1930 63202 0.3 25 250 9000 9000 2250000 20250000000
+49	269454 4784 1930 63202 0.3 25 250 5 10000 1908170.8517331 18101573209.423
+108	274238 16 63215 63215 25 25 1 1 1 1 1
+192	274254 16 63203 63203 25 25 1 1 1 1 1
+193	274270 16 63209 63209 25 25 1 1 1 1 1
+194	274286 16 63212 63212 25 25 1 1 1 1 1
+195	274302 16 63218 63218 25 25 1 1 1 1 1
+

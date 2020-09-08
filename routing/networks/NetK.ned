@@ -17,12 +17,15 @@ package networks;
 
 import node.Node;
 import ned.DatarateChannel;
+import node.Terminal;
+
 
 network NetK
 {
     parameters:
-        int num_of_hosts=default(25);
-        int colNum=default(int(sqrt(num_of_hosts))); 			// How many columns in matrix form
+        int num_of_hosts = default(25);
+        int num_of_terminals = default(20);
+        int colNum = default(int(sqrt(num_of_hosts))); 			// How many columns in matrix form
     	//@display("bgi=maps/world;bgb=763,318");
         //@display("bgi=background/earth(1);bgb=2000,1000");
     types:
@@ -33,15 +36,19 @@ network NetK
                 datarate = default(0.5Gbps);
         }
     submodules:
-        rte[num_of_hosts]: Node 
-        {
+        rte[num_of_hosts]: Node {
             parameters:
                 address = index;
                 num_of_satellite = num_of_hosts;
                 @display("bgb=10000,10000;bgi=maps/world,s,bgg=100,2,grey95,bgu=km");
-                @display("i=device/satellite,white;p=,,m,$colNum,500,500"); 	// Matrix form
+                //@display("i=device/satellite,white;p=,,m,$colNum,10000,10000"); 	// Matrix form
                 //@display("i=device/satellite,white;p=100,100,ri,1000,1000");	// Ring form
-                
+
+        }
+        terminal[num_of_terminals]: Terminal {
+            radius = 5000m;
+            address = index;
+            num_of_terminals = num_of_terminals;
         }
     connections allowunconnected:
         // Connection map (for num_of_hosts=25, colNum=5):
@@ -54,49 +61,49 @@ network NetK
 		// NOTE: The next connections (in loops) are inspired by Net25, and are to replicate it when
 		//		 num_of_hosts=25, colNum=5. The build is EXACTLY the same build in Net25, but expanded
 		//		 for any [num_of_hosts] or [colNum]
-		
+
         // Connections to right neighbor and to the neighbor below (if exists): x -> y and x -> z
         //		... x y ...
         //		... z . ...
-        for j=0..int(num_of_hosts/colNum)-1, for i=0..colNum-1{
+        for j=0..int(num_of_hosts/colNum)-1, for i=0..colNum-1 {
             rte[colNum*j+i].port++ <--> C <--> rte[colNum*j+i+1].port++ if i!=colNum-1;						// x -> y, w/o last col
             rte[colNum*j+i].port++ <--> C <--> rte[colNum*(j+1)+i].port++ if j!=int(num_of_hosts/colNum)-1;	// x -> z, w/o last row
         }
-                
-     	// Torus
-    	// Completing outer circles: x -> z or x -> y
-    	// NOTE: x,y,z are in margins
-    	//		x	...	 y
-    	//		...
-    	//		z
-        for j=0..int(num_of_hosts/colNum)-1{
+
+        // Torus
+        // Completing outer circles: x -> z or x -> y
+        // NOTE: x,y,z are in margins
+        //		x	...	 y
+        //		...
+        //		z
+        for j=0..int(num_of_hosts/colNum)-1 {
             rte[colNum*j].port++ <--> C <--> rte[colNum*(j+1)-1].port++;									// x -> y
         }
-        
-        for j=0..colNum-1{
+
+        for j=0..colNum-1 {
             rte[colNum*(int(num_of_hosts/colNum)-1) + j].port++ <--> C <--> rte[j].port++;					// x -> z
         }
-    
+
     	// Fifth Link
     	// Diagonal connections: x -> y -> z
     	//		x . .
     	//		. y .
     	//		. . z
     	// NOTE: Odd ruling for legacy porpuses
-    	
-    	//y -> first -> last
-    	rte[0].port++ <--> C <--> rte[colNum+1].port++;														// first -> y
-    	rte[0].port++ <--> C <--> rte[num_of_hosts-1].port++;												// first -> last 
-        
-        for j=1..colNum-2{
+
+        //y -> first -> last
+        rte[0].port++ <--> C <--> rte[colNum+1].port++;														// first -> y
+        rte[0].port++ <--> C <--> rte[num_of_hosts-1].port++;												// first -> last 
+
+        for j=1..colNum-2 {
             rte[j].port++ <--> C <--> rte[colNum+1+j].port++;												// x -> y
             rte[j].port++ <--> C <--> rte[num_of_hosts-colNum-1+j].port++;									// x -> z
         }
-    	
-    	rte[colNum-1].port++ <--> C <--> rte[num_of_hosts-2].port++;										// z -> y
-    	rte[colNum-1].port++ <--> C <--> rte[colNum].port++;   												// z -> x
-        for i=1..int(num_of_hosts/colNum)-2, for j=colNum*i..colNum*(i+1)-1{
+
+        rte[colNum-1].port++ <--> C <--> rte[num_of_hosts-2].port++;										// z -> y
+        rte[colNum-1].port++ <--> C <--> rte[colNum].port++;   												// z -> x
+        for i=1..int(num_of_hosts/colNum)-2, for j=colNum*i..colNum*(i+1)-1 {
             rte[j].port++ <--> C <--> rte[j+colNum+1].port++ if j!=colNum*(i+1)-1;							// x -> y, w/o last col 
             rte[j].port++ <--> C <--> rte[j+1].port++ if j==colNum*(i+1)-1;									// x -> y, last col
-        }        		
+        }
 }

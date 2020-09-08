@@ -9,9 +9,6 @@
 #include "L2Queue.h"
 #include "TerminalMsg_m.h"
 
-
-// #include "cobject.h"
-
 #define MAXAMOUNTOFLINKS 6          //lll: max number of links availble
 
 //lll: weight range. not in use
@@ -55,6 +52,10 @@ enum packet_type_list {
 enum kind_list {
     legacy = 0,
     terminal = 1,
+};
+enum terminalModes{
+    main,
+    sub
 };
 
 
@@ -157,13 +158,19 @@ private:
     //// Terminals
     RoutingTable myTerminalMap;       // Terminal address -> Index in terminal array [For terminals that are connected to self]
     RoutingTable neighborTerminalMap; // Terminal address -> Satellite address       [For terminals that are connected to a neighbor]
-    bool isDirectPortTaken[10];       // Array of {true, false} to indicate if the port is taken or not. For message collision avoidance in this module
+    int *isDirectPortTaken;           // Dynamic array of {0,1,2} to indicate if the port is taken or not (0 = not in use, 1 = main, 2 = sub).
+                                      // For message collision avoidance in this module.
+                                      // Size is calculated automatically from gateSize("terminalIn").
     int packetDropCounter;            // Number of terminal packets lost (No match in any of the above tables)
+
+    // Helpers
+    bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module
+                                      // Will become true after parsing the position from grid
 
 protected:
     virtual void initialize() override;
     virtual void handleMessage(cMessage *msg) override;
-    //virtual void finish() override;
+    //    virtual void finish() override;
 
     //// Init. aux. functions
     cTopology* CreateTopology(cTopology *Origtopo, const char* topoName);
