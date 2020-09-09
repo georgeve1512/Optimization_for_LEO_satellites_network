@@ -21,6 +21,7 @@ for line in lines:
 root = minidom.Document()
 
 # Create highest level - "movements"
+# <movements> ...
 xmlHigherLevel = root.createElement('movements')
 root.appendChild(xmlHigherLevel)
 
@@ -29,25 +30,27 @@ save_path_file = "mobility.xml"  # Output file name
 
 for i in range(0, len(posX)):
     # Create a new movement with id='i'
+    # <movement id="">...
     xml = root.createElement('movement')
     xml.setAttribute('id',str(i))
-    xmlHigherLevel.appendChild(xml)
+    xmlHigherLevel.appendChild(xml) # <movements> <movement id="[i]">
 
     # Create attributes for TurtleMobility
+    # <set x="" y="" ...>
     child = root.createElement('set')
     child.setAttribute('x',str(posX[i]))
     child.setAttribute('y', str(posY[i]))
     child.setAttribute('speed', str(speed))
     child.setAttribute('angle', str(angle))
     child.setAttribute('borderPolicy',"wrap")
-    xml.appendChild(child)
+    xml.appendChild(child) # <movements> <movement id="[i]"> <set ...>
 
     # Create repeat section
     repeat = root.createElement('repeat')
     repeatChild = root.createElement('forward')
     repeatChild.setAttribute('t', "60")
     repeat.appendChild(repeatChild)
-    xml.appendChild(repeat)
+    xml.appendChild(repeat) #<movements> <movement id="[i]"> <repeat> <forward ...>
 
     # Update result string
     xml_str = root.toprettyxml(indent ="\t")
