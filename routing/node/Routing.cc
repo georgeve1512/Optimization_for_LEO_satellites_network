@@ -1000,7 +1000,7 @@ void Routing::setNeighborsIndex() {
 int Routing::findDest(int direction,int index){
     int row = 0;
     int base = sqrt(num_of_hosts);
-    int col = index%base;
+    int col = index%base; // TODO: read parameter of colNum?
     int temp = index;
     bool torus = true;
 
@@ -1827,9 +1827,6 @@ void Routing::initialize() {
     for(int i=0; i < gateSize("terminalIn"); i++)
         isDirectPortTaken[i] = 0;
 
-    // TODO: remove
-    scheduleAt(simTime(),new cMessage("Pos Msg", 99));
-
     //set initial topo weight's (1on each link)
     setLinksWeight(topo, 0);
     //init Routing table from topology
@@ -2440,29 +2437,6 @@ void Routing::handleMessage(cMessage *msg) {
             return;
         }
 
-        if (msg->getKind() == 99){
-            cDisplayString *myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
-            double posX, posY;
-            std::string dispStr(myDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
-            std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
-
-            dispStr = dispStr.substr(pos);                          // Cut string until the first number
-            posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
-                                                                    //      location AFTER the first double
-
-            dispStr = dispStr.substr(pos);                          // Remove the X position from string
-
-            pos = dispStr.find_first_of("0123456789");              // find position of the first number
-            dispStr = dispStr.substr(pos);                          // Cut string until the first number
-            posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
-
-            // Print position to copy to [coordinates.txt] file, and run [buildXMLFiles.py]
-            std::cout << "Satellite " << mySatAddress << " pos: (" << posX << ", " << posY << ")" << endl;
-
-            scheduleAt(simTime() + 0.11, msg);
-            return;
-        }
-
         TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(msg);
         switch (terMsg->getPacketType()){
             case terminal_message:{
@@ -2488,19 +2462,19 @@ void Routing::handleMessage(cMessage *msg) {
             }
             case terminal_connect:{
                 //// Terminal wishes to connect
-                /* NOTES: 1. In this case the destination address is not satellite's address, but the type
-                 *              of the connection (main/sub). For collision avoidance in terminal.
+                /* NOTES: 1. In this case the destination address is ignored
                  *        2. The source must be the correct address (for terminal table).
                  */
 
                 // Find if there is an open position in array and prepare target's gate name
-                int assignedIndex = -1;
+                int assignedIndex = -1, mode = -1;
                 std::string targetGate;
                 for(int i = 0; i < gateSize("terminalIn"); i++)
                     if (!isDirectPortTaken[i]){
                         assignedIndex = i;      // Index in array
 
-                        switch (terMsg->getDestAddr()){
+                        mode = terMsg->getMode();
+                        switch (mode){
                             case main:{
                                 isDirectPortTaken[i] = 1;   // Raise a flag to know that this index is taken
                                 targetGate = "mainIn";      // Find which gate to send replies/messages
@@ -2519,18 +2493,32 @@ void Routing::handleMessage(cMessage *msg) {
 
                 // Send reply
                 /* NOTES: 1. If assignedIndex==-1 the terminal would know it had no open position.
-                 *        2. Source address here holds the assignedIndex (reduce memory allocation for the message)
-                 *        3. Like above, type of connection is saved in destination (allows less smart/complex code in terminal)
-                 *        4. Byte length is 0 - This message is auxiliary for simulation, not a real message
-                 *        5. Duration of transmission is also 0, for above reason
+                 *        2. Byte length is 0 - This message is auxiliary for simulation, not a real message
+                 *        3. Duration of transmission is also 0, for above reason
                  * */
                 TerminalMsg * ansMsg = new TerminalMsg("Satellite reply - index for terminal");
                 ansMsg->setKind(terminal);
-                ansMsg->setSrcAddr(assignedIndex);
-                ansMsg->setDestAddr(terMsg->getDestAddr());
+                ansMsg->setSrcAddr(mySatAddress);
+                ansMsg->setDestAddr(terMsg->getSrcAddr());
                 ansMsg->setPacketType(terminal_index_assign);
+                ansMsg->setReplyType(assignedIndex);
+                ansMsg->setMode(mode);
                 ansMsg->setByteLength(0);
                 sendDirect(ansMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
+
+                std::string bubbleText;
+                if (assignedIndex == -1){
+                    bubbleText = "Rejected connection with terminal ";
+                }
+                else{
+                    bubbleText = "Accepted connection with terminal ";
+                }
+                bubbleText += std::to_string(terMsg->getSrcAddr());
+                EV << bubbleText << endl;
+
+                if (hasGUI()){
+                    getParentModule()->bubble(bubbleText.c_str());
+                }
 
                 break;
             }

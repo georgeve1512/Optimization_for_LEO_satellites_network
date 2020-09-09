@@ -28,6 +28,7 @@ module Node
         bool fullTopoRun = default(false);
         string appType;
         string mobilityType = default("SuperpositioningMobility");
+        int maxTerminalNumber = default(10);
 
         @networkNode();
         @signal[check](type="long");
@@ -36,6 +37,7 @@ module Node
         @display("i=misc/satellite2,gold");
     gates:
         inout port[];
+        input terminalIn[maxTerminalNumber] @directIn;
     submodules:
         app: <appType> like IApp {
             parameters:
@@ -48,14 +50,12 @@ module Node
             gates:
                 in[sizeof(port)];
                 out[sizeof(port)];
+                terminalIn[maxTerminalNumber];
         }
         queue[sizeof(port)]: L2Queue {
             parameters:
                 @display("p=65,155,row");
         }
-        //        mobility: <mobilityType> like IMobility {
-        //            @display("p=140,233");
-        //        }
         grid: StaticGridMobility {
             @display("p=45,233");
         }
@@ -71,5 +71,8 @@ module Node
             routing.in[i] <-- queue[i].out;
             //line is queue to queue
             queue[i].line <--> port[i];
+        }
+        for i=0..maxTerminalNumber-1{
+            routing.terminalIn[i] <-- terminalIn[i];
         }
 }

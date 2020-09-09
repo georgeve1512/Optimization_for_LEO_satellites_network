@@ -26,14 +26,13 @@ simple Routing
         @statistic[hopCount](title="count number of hops for packet";interpolationmode=none;record=histogram,mean,max,count);
         volatile double sendTime @unit(s) = default(exponential(10ms)); // time between generating packets
         @signal[load_balance_channel](type="string");
-        
     gates:
         input in[];
         output out[];
         input localIn;
         output localOut;
         
-        input terminalIn[10] @directIn;
+        input terminalIn[];
 }
 
 

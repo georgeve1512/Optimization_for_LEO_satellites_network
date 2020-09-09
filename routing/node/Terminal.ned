@@ -47,8 +47,8 @@ module Terminal
             @display("p=89,44");
         }
     connections allowunconnected:
-        //mainIn --> app.mainIn;
+        mainIn --> app.mainIn;
         //app.mainOut --> mainOut;
-		//subIn --> app.subIn;
+		subIn --> app.subIn;
         //app.subOut --> subOut;
 }

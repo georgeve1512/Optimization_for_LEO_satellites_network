@@ -20,16 +20,15 @@
 
 class TerminalMsg;
 /**
- * Class generated from <tt>node/TerminalMsg.msg:19</tt> by nedtool.
+ * Class generated from <tt>node/TerminalMsg.msg:20</tt> by nedtool.
  * <pre>
- * //
- * // This is a terminal's data packet
- * //
  * packet TerminalMsg
  * {
  *     int srcAddr \@packetData;
  *     int destAddr \@packetData;
  *     int packetType \@packetData;
+ *     int mode \@packetData;
+ *     int replyType \@packetData;
  * }
  * </pre>
  */
@@ -39,6 +38,8 @@ class TerminalMsg : public ::omnetpp::cPacket
     int srcAddr = 0;
     int destAddr = 0;
     int packetType = 0;
+    int mode = 0;
+    int replyType = 0;
 
   private:
     void copy(const TerminalMsg& other);
@@ -48,7 +49,7 @@ class TerminalMsg : public ::omnetpp::cPacket
     bool operator==(const TerminalMsg&);
 
   public:
-    TerminalMsg(const char *name=nullptr, short kind=1);
+    TerminalMsg(const char *name=nullptr, short kind=0);
     TerminalMsg(const TerminalMsg& other);
     virtual ~TerminalMsg();
     TerminalMsg& operator=(const TerminalMsg& other);
@@ -63,6 +64,10 @@ class TerminalMsg : public ::omnetpp::cPacket
     virtual void setDestAddr(int destAddr);
     virtual int getPacketType() const;
     virtual void setPacketType(int packetType);
+    virtual int getMode() const;
+    virtual void setMode(int mode);
+    virtual int getReplyType() const;
+    virtual void setReplyType(int replyType);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const TerminalMsg& obj) {obj.parsimPack(b);}

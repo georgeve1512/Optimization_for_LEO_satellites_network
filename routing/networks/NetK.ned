@@ -25,7 +25,12 @@ network NetK
     parameters:
         int num_of_hosts = default(25);
         int num_of_terminals = default(20);
-        int colNum = default(int(sqrt(num_of_hosts))); 			// How many columns in matrix form
+		double maxX @unit(m);
+        double maxY @unit(m);
+        double minX @unit(m);
+        double minY @unit(m);
+        int colNum=default(int(ceil(sqrt(num_of_hosts * (maxX - minX) / (maxY - minY)))));
+        
     	//@display("bgi=maps/world;bgb=763,318");
         //@display("bgi=background/earth(1);bgb=2000,1000");
     types:
@@ -40,15 +45,41 @@ network NetK
             parameters:
                 address = index;
                 num_of_satellite = num_of_hosts;
-                @display("bgb=10000,10000;bgi=maps/world,s,bgg=100,2,grey95,bgu=km");
+                
+                // Grid data + constraints
+                grid.numHosts = num_of_hosts;
+                grid.constraintAreaMaxX = maxX;
+                grid.constraintAreaMaxY = maxY;
+                grid.constraintAreaMaxZ = 0;
+                grid.constraintAreaMinX = minX;
+                grid.constraintAreaMinY = minY;
+                grid.constraintAreaMinZ = 0;
+                
+                // Mobility constraints
+                mobility.constraintAreaMaxX = maxX;
+                mobility.constraintAreaMaxY = maxY;
+                mobility.constraintAreaMaxZ = 0;
+                mobility.constraintAreaMinX = minX;
+                mobility.constraintAreaMinY = minY;
+                mobility.constraintAreaMinZ = 0;
+                
+                @display("bgb=$maxX-$minX,$maxY-$minY;bgi=maps/world,s,bgg=100,2,grey95,bgu=km");
                 //@display("i=device/satellite,white;p=,,m,$colNum,10000,10000"); 	// Matrix form
                 //@display("i=device/satellite,white;p=100,100,ri,1000,1000");	// Ring form
 
         }
         terminal[num_of_terminals]: Terminal {
-            radius = 5000m;
-            address = index;
-            num_of_terminals = num_of_terminals;
+            parameters:
+                address = index;
+                num_of_terminals = num_of_terminals;
+                
+                // Mobility constraints
+                mobility.constraintAreaMaxX = maxX;
+                mobility.constraintAreaMaxY = maxY;
+                mobility.constraintAreaMaxZ = 0;
+                mobility.constraintAreaMinX = minX;
+                mobility.constraintAreaMinY = minY;
+                mobility.constraintAreaMinZ = 0;            
         }
     connections allowunconnected:
         // Connection map (for num_of_hosts=25, colNum=5):

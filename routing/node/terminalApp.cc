@@ -97,6 +97,7 @@ void TerminalApp::initialize()
     numOfTerminals = par("numOfTerminals").intValue();
     numOfSatellites = getParentModule()->getParentModule()->par("num_of_hosts").intValue();
     radius = getParentModule()->par("radius").doubleValue();
+    rate =  check_and_cast<cDatarateChannel*>(getParentModule()->getParentModule()->getSubmodule("rte", 0)->getSubmodule("queue", 0)->gate("line$o")->getTransmissionChannel())->getDatarate();
 
     /* Create an index array of possible targets.
      * The array is {0,1,...,numOfTerminals} without [myAddress].
@@ -129,9 +130,8 @@ void TerminalApp::initialize()
 
     // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
-    //updateInterval = getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
-    updatePosition(myDispStr, myPosX, myPosY);
-    std::cout << "Terminal " << myAddress << " pos: (" << myPosX << ", " << myPosY << ")" << endl;
+    updateInterval = 0; //getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
+    scheduleAt(simTime(), new cMessage("Initialize self position", initializeMyPosition));
 
     // Initialize satellite database
     isConnected = 0;
@@ -139,30 +139,7 @@ void TerminalApp::initialize()
     resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
 
     // Initialize satellite connection - connect to closest satellite as main
-    // TODO: move after initialize...
-    double minDistance = DBL_MAX;
-    int satAddress = -1;
-    bool foundMin;
-    for(int i = 0; i < numOfSatellites; i++){
-        double dist = getDistanceFromSatellite(i);
-        if (dist <= radius && dist < minDistance){
-            minDistance = dist;
-            satAddress = i;
-            foundMin = true;
-        }
-    }
-
-    if (foundMin){
-        std::cout << "Terminal " << myAddress << " can connect to " << satAddress << " dist=" << minDistance << endl;
-
-        /*
-        // Complete connection
-        // TODO: Might want to combine everything here to [connectToSatellite]. Remember to check is message exists or not
-        connectToSatellite(satAddress, main);
-        updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Time Message", mainSatellitePositionUpdateTime);
-        scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
-        */
-    }
+    scheduleAt(simTime(), new cMessage("Initialize connection", initializeConnection));
 
     appMsg = new cMessage("Inter Arrival Time Self Message", interArrivalTime);
     scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
@@ -204,7 +181,6 @@ void TerminalApp::handleMessage(cMessage *msg)
                         getParentModule()->bubble("Not connected!");
                 }
 
-
                 cancelEvent(appMsg);
                 scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
                 break;
@@ -221,8 +197,10 @@ void TerminalApp::handleMessage(cMessage *msg)
             }
             case mainSatellitePositionUpdateTime:{
                 //// Update main satellite position & check connection
-
                 updatePosition(mainSatDispStr, mainSatPosX, mainSatPosY);
+
+                if (!myAddress)
+                    std::cout << "Terminal " << myAddress << " thinks satellite " << mainSatAddress << " is on (" << mainSatPosX << ", " << mainSatPosY << ")" << endl;
                 // TODO - Check connection
 
                 cancelEvent(updateMainSatellitePositionMsg);
@@ -237,6 +215,41 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                 cancelEvent(updateSubSatellitePositionMsg);
                 scheduleAt(simTime() + subSatUpdateInterval, updateSubSatellitePositionMsg);
+                break;
+            }
+            case initializeMyPosition:{
+                // Message to initialize original position of the terminal
+                if (updateInterval){
+                    updateMyPositionMsg = new cMessage("Update my position message", selfPositionUpdateTime);
+                    scheduleAt(simTime() + updateInterval, updateMyPositionMsg);
+                }
+                updatePosition(myDispStr, myPosX, myPosY);
+
+                delete msg;
+                break;
+            }
+            case initializeConnection:{
+                // Try to connect to a satellite after initialization
+
+                // Connect to the closest satellite
+                double minDistance = DBL_MAX;
+                int satAddress = -1;
+                bool foundMin = false;
+                for(int i = 0; i < numOfSatellites; i++){
+                    double dist = getDistanceFromSatellite(i);
+                    if (dist <= radius && dist < minDistance){
+                        minDistance = dist;
+                        satAddress = i;
+                        foundMin = true;
+                    }
+                }
+
+                if (foundMin){
+                    // Start handshake with satellite
+                    connectToSatellite(satAddress, main);
+                }
+
+                delete msg;
                 break;
             }
         }
@@ -261,40 +274,43 @@ void TerminalApp::handleMessage(cMessage *msg)
                 emit(endToEndDelaySignal, eed);
                 numReceived++;
 
-                delete msg;
                 break;
             }
             case terminal_index_assign:{
                 //// Assign index from a satellite
 
                 // TODO: Complete handshake
-                if (terMsg->getSrcAddr() != -1){
+                if (terMsg->getReplyType() != -1){
                     //Satellite found an open gate for me
 
-                    switch (terMsg->getDestAddr()){
+                    switch (terMsg->getMode()){
                         case main:{
                             isConnected = 1;
 
+                            mainConnectionIndex = terMsg->getReplyType();
                             if (!updateMainSatellitePositionMsg){
                                 // First time connected to any satellite
                                 updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Self Message",mainSatellitePositionUpdateTime);
                             }
 
-                            // TODO: get exact time for position update + 0.01 and schedule position update
-                            // TODO: scheduleAt()
+                            // Calculate exact time for position update + 0.01 and schedule position update
+                            double remainingTime = getRemainingTime(mainSatUpdateInterval);
+                            scheduleAt(simTime() + remainingTime, updateMainSatellitePositionMsg);
 
                             break;
                         }
                         case sub:{
                             isConnected = 2;
 
+                            subConnectionIndex = terMsg->getReplyType();
                             if (!updateSubSatellitePositionMsg){
                                 // First time connected to any satellite
                                 updateSubSatellitePositionMsg = new cMessage("Sub Satellite Position Update Self Message",subSatellitePositionUpdateTime);
                             }
 
-                            // TODO: get exact time for position update + 0.01 and schedule position update
-                            // TODO: scheduleAt()
+                            // Calculate exact time for position update + 0.01 and schedule position update
+                            double remainingTime = getRemainingTime(subSatUpdateInterval);
+                            scheduleAt(simTime() + remainingTime, updateSubSatellitePositionMsg);
 
                             break;
                         }
@@ -326,6 +342,8 @@ void TerminalApp::handleMessage(cMessage *msg)
                 std::cout << "Error! Received satellite's packet in TerminalMsg Format!" << endl;
                 endSimulation();
         }
+
+        delete msg;
     }
 }
 
@@ -382,7 +400,16 @@ void TerminalApp::connectToSatellite(int satAddress, int mode){
     }
 
     // TODO: Connection handshake start - send terminal_connection to satellite
-    // Kind = 1, destination = {main, sub} [mode],
+
+    TerminalMsg *terMsg = new TerminalMsg("Connection Request", terminal);
+    terMsg->setSrcAddr(myAddress);
+    terMsg->setDestAddr(satAddress);
+    terMsg->setPacketType(terminal_connect);
+    terMsg->setMode(mode);
+    terMsg->setByteLength(64); // Ethernet minimum
+
+    cModule *satellite = getParentModule()->getParentModule()->getSubmodule("rte", satAddress);
+    sendDirect(terMsg, 0, terMsg->getByteLength()/rate, satellite->gate("terminalIn", 0));
 }
 
 void TerminalApp::disconnectFromSatellite(){
@@ -393,4 +420,15 @@ void TerminalApp::disconnectFromSatellite(){
 
     // TODO: Disconnection process - send terminal_disconnection to satellite
     isConnected--;
+}
+
+double TerminalApp::getRemainingTime(double updateInterval, double epsilon){
+    /* Calculate how much time is needed to wait until next update, and add [epsilon] to it.
+     * Calculation is taking the fraction part of (current simulation time) / [updateInterval], and subtract it from [updateInterval]:
+     *      remaining time = updateInterval - frac(simTime()/updateInterval)
+     * To this time we add [epsilon] in order to get small delay
+     *  */
+
+    double currSimTime = simTime().dbl();
+    return updateInterval + epsilon - updateInterval * (currSimTime/updateInterval - int(currSimTime/updateInterval));
 }

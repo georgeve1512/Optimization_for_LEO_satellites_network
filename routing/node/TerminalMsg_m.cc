@@ -234,6 +234,8 @@ void TerminalMsg::copy(const TerminalMsg& other)
     this->srcAddr = other.srcAddr;
     this->destAddr = other.destAddr;
     this->packetType = other.packetType;
+    this->mode = other.mode;
+    this->replyType = other.replyType;
 }
 
 void TerminalMsg::parsimPack(omnetpp::cCommBuffer *b) const
@@ -242,6 +244,8 @@ void TerminalMsg::parsimPack(omnetpp::cCommBuffer *b) const
     doParsimPacking(b,this->srcAddr);
     doParsimPacking(b,this->destAddr);
     doParsimPacking(b,this->packetType);
+    doParsimPacking(b,this->mode);
+    doParsimPacking(b,this->replyType);
 }
 
 void TerminalMsg::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -250,6 +254,8 @@ void TerminalMsg::parsimUnpack(omnetpp::cCommBuffer *b)
     doParsimUnpacking(b,this->srcAddr);
     doParsimUnpacking(b,this->destAddr);
     doParsimUnpacking(b,this->packetType);
+    doParsimUnpacking(b,this->mode);
+    doParsimUnpacking(b,this->replyType);
 }
 
 int TerminalMsg::getSrcAddr() const
@@ -282,6 +288,26 @@ void TerminalMsg::setPacketType(int packetType)
     this->packetType = packetType;
 }
 
+int TerminalMsg::getMode() const
+{
+    return this->mode;
+}
+
+void TerminalMsg::setMode(int mode)
+{
+    this->mode = mode;
+}
+
+int TerminalMsg::getReplyType() const
+{
+    return this->replyType;
+}
+
+void TerminalMsg::setReplyType(int replyType)
+{
+    this->replyType = replyType;
+}
+
 class TerminalMsgDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -290,6 +316,8 @@ class TerminalMsgDescriptor : public omnetpp::cClassDescriptor
         FIELD_srcAddr,
         FIELD_destAddr,
         FIELD_packetType,
+        FIELD_mode,
+        FIELD_replyType,
     };
   public:
     TerminalMsgDescriptor();
@@ -352,7 +380,7 @@ const char *TerminalMsgDescriptor::getProperty(const char *propertyname) const
 int TerminalMsgDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
-    return basedesc ? 3+basedesc->getFieldCount() : 3;
+    return basedesc ? 5+basedesc->getFieldCount() : 5;
 }
 
 unsigned int TerminalMsgDescriptor::getFieldTypeFlags(int field) const
@@ -367,8 +395,10 @@ unsigned int TerminalMsgDescriptor::getFieldTypeFlags(int field) const
         FD_ISEDITABLE,    // FIELD_srcAddr
         FD_ISEDITABLE,    // FIELD_destAddr
         FD_ISEDITABLE,    // FIELD_packetType
+        FD_ISEDITABLE,    // FIELD_mode
+        FD_ISEDITABLE,    // FIELD_replyType
     };
-    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 5) ? fieldTypeFlags[field] : 0;
 }
 
 const char *TerminalMsgDescriptor::getFieldName(int field) const
@@ -383,8 +413,10 @@ const char *TerminalMsgDescriptor::getFieldName(int field) const
         "srcAddr",
         "destAddr",
         "packetType",
+        "mode",
+        "replyType",
     };
-    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 5) ? fieldNames[field] : nullptr;
 }
 
 int TerminalMsgDescriptor::findField(const char *fieldName) const
@@ -394,6 +426,8 @@ int TerminalMsgDescriptor::findField(const char *fieldName) const
     if (fieldName[0] == 's' && strcmp(fieldName, "srcAddr") == 0) return base+0;
     if (fieldName[0] == 'd' && strcmp(fieldName, "destAddr") == 0) return base+1;
     if (fieldName[0] == 'p' && strcmp(fieldName, "packetType") == 0) return base+2;
+    if (fieldName[0] == 'm' && strcmp(fieldName, "mode") == 0) return base+3;
+    if (fieldName[0] == 'r' && strcmp(fieldName, "replyType") == 0) return base+4;
     return basedesc ? basedesc->findField(fieldName) : -1;
 }
 
@@ -409,8 +443,10 @@ const char *TerminalMsgDescriptor::getFieldTypeString(int field) const
         "int",    // FIELD_srcAddr
         "int",    // FIELD_destAddr
         "int",    // FIELD_packetType
+        "int",    // FIELD_mode
+        "int",    // FIELD_replyType
     };
-    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 5) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **TerminalMsgDescriptor::getFieldPropertyNames(int field) const
@@ -434,6 +470,14 @@ const char **TerminalMsgDescriptor::getFieldPropertyNames(int field) const
             static const char *names[] = { "packetData",  nullptr };
             return names;
         }
+        case FIELD_mode: {
+            static const char *names[] = { "packetData",  nullptr };
+            return names;
+        }
+        case FIELD_replyType: {
+            static const char *names[] = { "packetData",  nullptr };
+            return names;
+        }
         default: return nullptr;
     }
 }
@@ -454,6 +498,12 @@ const char *TerminalMsgDescriptor::getFieldProperty(int field, const char *prope
             if (!strcmp(propertyname, "packetData")) return "";
             return nullptr;
         case FIELD_packetType:
+            if (!strcmp(propertyname, "packetData")) return "";
+            return nullptr;
+        case FIELD_mode:
+            if (!strcmp(propertyname, "packetData")) return "";
+            return nullptr;
+        case FIELD_replyType:
             if (!strcmp(propertyname, "packetData")) return "";
             return nullptr;
         default: return nullptr;
@@ -501,6 +551,8 @@ std::string TerminalMsgDescriptor::getFieldValueAsString(void *object, int field
         case FIELD_srcAddr: return long2string(pp->getSrcAddr());
         case FIELD_destAddr: return long2string(pp->getDestAddr());
         case FIELD_packetType: return long2string(pp->getPacketType());
+        case FIELD_mode: return long2string(pp->getMode());
+        case FIELD_replyType: return long2string(pp->getReplyType());
         default: return "";
     }
 }
@@ -518,6 +570,8 @@ bool TerminalMsgDescriptor::setFieldValueAsString(void *object, int field, int i
         case FIELD_srcAddr: pp->setSrcAddr(string2long(value)); return true;
         case FIELD_destAddr: pp->setDestAddr(string2long(value)); return true;
         case FIELD_packetType: pp->setPacketType(string2long(value)); return true;
+        case FIELD_mode: pp->setMode(string2long(value)); return true;
+        case FIELD_replyType: pp->setReplyType(string2long(value)); return true;
         default: return false;
     }
 }

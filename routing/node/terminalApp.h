@@ -24,7 +24,9 @@ enum selfMessageTypes{
     interArrivalTime,
     selfPositionUpdateTime,
     mainSatellitePositionUpdateTime,
-    subSatellitePositionUpdateTime
+    subSatellitePositionUpdateTime,
+    initializeMyPosition,
+    initializeConnection
 };
 
 
@@ -39,7 +41,7 @@ class TerminalApp : public cSimpleModule
 
         // Auxiliary functions
         int getConnectedSatelliteAddress();
-        void updatePosition(cDisplayString *cDispStr, double &posX, double &posY);
+        void updatePosition(cDisplayString *cDispStr, double &posX, double &posY); // NOTE: Simulation must run on 'fast' or lower in order for this function to work properly
         double getDistanceFromSatellite(int satAddress);
     protected:
         // Simulation helpers
@@ -47,6 +49,7 @@ class TerminalApp : public cSimpleModule
         cMessage *updateMyPositionMsg;            // Reduce memory allocations
         cMessage *updateMainSatellitePositionMsg; // Reduce memory allocations
         cMessage *updateSubSatellitePositionMsg;  // Reduce memory allocations
+        double rate;
 
         // Simulation parameters
         int myAddress;              // UID
@@ -107,6 +110,9 @@ class TerminalApp : public cSimpleModule
         // Sending connection messages
         void connectToSatellite(int satAddress, int mode);
         void disconnectFromSatellite();
+
+        // Auxiliary functions
+        double getRemainingTime(double updateInterval, double epsilon=0.01);
 };
 
 #endif

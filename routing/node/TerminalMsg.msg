@@ -16,8 +16,11 @@
 //
 // This is a terminal's data packet
 //
+
 packet TerminalMsg {
     int srcAddr @packetData;
     int destAddr @packetData;
 	int packetType @packetData;
+	int mode @packetData;
+	int replyType @packetData;
 }
