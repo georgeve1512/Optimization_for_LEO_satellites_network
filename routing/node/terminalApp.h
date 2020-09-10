@@ -43,6 +43,7 @@ class TerminalApp : public cSimpleModule
         int getConnectedSatelliteAddress();
         void updatePosition(cDisplayString *cDispStr, double &posX, double &posY); // NOTE: Simulation must run on 'fast' or lower in order for this function to work properly
         double getDistanceFromSatellite(int satAddress);
+        int getClosestSatellite(int ignoreIndex);
     protected:
         // Simulation helpers
         cMessage *appMsg;                         // Reduce memory allocations
@@ -55,8 +56,7 @@ class TerminalApp : public cSimpleModule
         int myAddress;              // UID
         int numOfTerminals;         // How many terminals are
         double radius;              // Coverage radius
-        double thresholdRadius;     // Threshold to look for a sub satellite.
-                                    // TODO - is [radius] - 2*(12000/R)*[c=3*10^8 m/s] a good threshold?
+        double thresholdRadius;     // Threshold to look for a sub satellite. Calculated by radius * frac
         int *indexList;             // For actual uniform choice between terminals (And not Geometric)
         int numOfSatellites;        // Number of satellites in simulation
 
@@ -105,14 +105,16 @@ class TerminalApp : public cSimpleModule
 
         // Satellite connectivity
         bool checkConnection(int mode);
-        void resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex);
+        void resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage *updateMsg);
 
         // Sending connection messages
+        void findSatelliteToConnect(int ignoreIndex, int mode);
         void connectToSatellite(int satAddress, int mode);
-        void disconnectFromSatellite();
+        void disconnectFromSatellite(int mode);
 
         // Auxiliary functions
         double getRemainingTime(double updateInterval, double epsilon=0.01);
+        void upgradeSubToMain();
 };
 
 #endif

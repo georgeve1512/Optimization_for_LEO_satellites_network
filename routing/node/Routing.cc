@@ -782,7 +782,7 @@ int Routing:: getNumOfLinks(){
     return 4;
 }
 
-//lll: triggering disterbuted leader selection packet
+//lll: triggering distributed leader selection packet
 void Routing::scheduleChoosingLeaderPhaseOne() {
     Packet *phase1_initiate = new Packet("Selecting Leader Phase 1 update!");
     phase1_initiate->setSrcAddr(mySatAddress);
@@ -2504,26 +2504,21 @@ void Routing::handleMessage(cMessage *msg) {
                 ansMsg->setReplyType(assignedIndex);
                 ansMsg->setMode(mode);
                 ansMsg->setByteLength(0);
-                sendDirect(ansMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
-
-                std::string bubbleText;
-                if (assignedIndex == -1){
-                    bubbleText = "Rejected connection with terminal ";
-                }
-                else{
-                    bubbleText = "Accepted connection with terminal ";
-                }
-                bubbleText += std::to_string(terMsg->getSrcAddr());
-                EV << bubbleText << endl;
-
-                if (hasGUI()){
-                    getParentModule()->bubble(bubbleText.c_str());
-                }
+                sendDirect(ansMsg, getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
 
                 break;
             }
             case terminal_disconnect:{
                 //// Terminal wishes to disconnect
+
+                // Check if source exists in table and delete it
+                RoutingTable::iterator it;
+                it = myTerminalMap.find(terMsg->getSrcAddr());
+                if (it != myTerminalMap.end())
+                    myTerminalMap.erase(it);
+
+                EV << "Satellite " << mySatAddress << " has forgotten terminal " << terMsg->getSrcAddr() << " completely" << endl;
+
                 break;
             }
             case terminal_index_assign:{

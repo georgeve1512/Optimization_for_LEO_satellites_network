@@ -81,6 +81,29 @@ double TerminalApp::getDistanceFromSatellite(int satAddress){
     return sqrt(pow(myPosX-satPosX,2)+pow(myPosY-satPosY,2));
 }
 
+int TerminalApp::getClosestSatellite(int ignoreIndex){
+    /* Iterate over all satellites while ignoring the satellite index given in [ignoreIndex].
+     * Returns the index of the closest satellite, or -1 if none are inside radius
+     * */
+
+    // Find closest satellite
+    double minDistance = DBL_MAX;
+    int satAddress = -1;
+    for(int i = 0; i < numOfSatellites; i++){           // Iterate over all satellites
+        if (i != ignoreIndex){                          // Ignore [ignoreIndex] satellite
+            double dist = getDistanceFromSatellite(i);  // Calculate distance to satellite i
+
+            // Save shortest distance (of a satellite inside the disk) and satellite index
+            if (dist <= radius && dist < minDistance){
+                minDistance = dist;
+                satAddress = i;
+            }
+        }
+    }
+
+    return satAddress;
+}
+
 /************************************************************************************************************************************/
 /*---------------------------------------PRIVATE FUNCTIONS--------------------------------------------------------------------------*/
 /************************************************************************************************************************************/
@@ -98,6 +121,7 @@ void TerminalApp::initialize()
     numOfSatellites = getParentModule()->getParentModule()->par("num_of_hosts").intValue();
     radius = getParentModule()->par("radius").doubleValue();
     rate =  check_and_cast<cDatarateChannel*>(getParentModule()->getParentModule()->getSubmodule("rte", 0)->getSubmodule("queue", 0)->gate("line$o")->getTransmissionChannel())->getDatarate();
+    thresholdRadius = radius * getParentModule()->par("frac").doubleValue();
 
     /* Create an index array of possible targets.
      * The array is {0,1,...,numOfTerminals} without [myAddress].
@@ -135,8 +159,8 @@ void TerminalApp::initialize()
 
     // Initialize satellite database
     isConnected = 0;
-    resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex);
-    resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
+    resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex, updateMainSatellitePositionMsg);
+    resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
 
     // Initialize satellite connection - connect to closest satellite as main
     scheduleAt(simTime(), new cMessage("Initialize connection", initializeConnection));
@@ -165,12 +189,11 @@ void TerminalApp::handleMessage(cMessage *msg)
                     // Choose target satellite - if there are two give priority to sub
                     /* Note - sendDirect(cMessage *msg, simtime_t propagationDelay, simtime_t duration, cModule *mod, const char *gateName, int index=-1)
                      *        is being used here.
-                     * TODO: set propagation/transmission duration. For transmission time R is required
                      * */
                     if (isConnected == 1)
-                        sendDirect(terMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("rte", mainSatAddress),"terminalIn", mainConnectionIndex);
+                        sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", mainSatAddress),"terminalIn", mainConnectionIndex);
                     else
-                        sendDirect(terMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("rte", subSatAddress),"terminalIn", subConnectionIndex);
+                        sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", subSatAddress),"terminalIn", subConnectionIndex);
 
                     // Update statistics
                     numSent++;
@@ -197,14 +220,40 @@ void TerminalApp::handleMessage(cMessage *msg)
             }
             case mainSatellitePositionUpdateTime:{
                 //// Update main satellite position & check connection
+
                 updatePosition(mainSatDispStr, mainSatPosX, mainSatPosY);
+                if (checkConnection(main)){
+                    // Satellite is still around the terminal
 
-                if (!myAddress)
-                    std::cout << "Terminal " << myAddress << " thinks satellite " << mainSatAddress << " is on (" << mainSatPosX << ", " << mainSatPosY << ")" << endl;
-                // TODO - Check connection
+                    if (isConnected == 1){ // If no sub exists
+                        // Check if distance is greater than threshold
+                        if (getDistanceFromSatellite(mainSatAddress) >= thresholdRadius){
 
-                cancelEvent(updateMainSatellitePositionMsg);
-                scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
+                            // The main satellite is outside of threshold - look for a new satellite to connect to
+                            EV << "Terminal " << myAddress << " main satellite is outside threshold radius, looking for sub satellite" << endl;
+                            findSatelliteToConnect(mainSatAddress, sub);
+                        }
+                    }
+                }
+                else{
+                    // Terminal is too far away and is no longer connected
+
+                    if (isConnected == 1){
+                        // No sub - just disconnect
+                        disconnectFromSatellite(main);
+                    }
+                    else{
+                        // There is a sub satellite - it promotes to main
+                        disconnectFromSatellite(main);
+                        upgradeSubToMain();
+                    }
+                }
+
+                // Send self message only if still connected
+                if (updateMainSatellitePositionMsg){
+                    cancelEvent(updateMainSatellitePositionMsg);
+                    scheduleAt(simTime() + mainSatUpdateInterval, updateMainSatellitePositionMsg);
+                }
                 break;
             }
             case subSatellitePositionUpdateTime:{
@@ -213,8 +262,10 @@ void TerminalApp::handleMessage(cMessage *msg)
                 updatePosition(subSatDispStr, subSatPosX, subSatPosY);
                 // TODO - Check connection
 
-                cancelEvent(updateSubSatellitePositionMsg);
-                scheduleAt(simTime() + subSatUpdateInterval, updateSubSatellitePositionMsg);
+                if (updateSubSatellitePositionMsg){
+                    cancelEvent(updateSubSatellitePositionMsg);
+                    scheduleAt(simTime() + subSatUpdateInterval, updateSubSatellitePositionMsg);
+                }
                 break;
             }
             case initializeMyPosition:{
@@ -231,23 +282,7 @@ void TerminalApp::handleMessage(cMessage *msg)
             case initializeConnection:{
                 // Try to connect to a satellite after initialization
 
-                // Connect to the closest satellite
-                double minDistance = DBL_MAX;
-                int satAddress = -1;
-                bool foundMin = false;
-                for(int i = 0; i < numOfSatellites; i++){
-                    double dist = getDistanceFromSatellite(i);
-                    if (dist <= radius && dist < minDistance){
-                        minDistance = dist;
-                        satAddress = i;
-                        foundMin = true;
-                    }
-                }
-
-                if (foundMin){
-                    // Start handshake with satellite
-                    connectToSatellite(satAddress, main);
-                }
+                findSatelliteToConnect(-1, main);
 
                 delete msg;
                 break;
@@ -279,9 +314,10 @@ void TerminalApp::handleMessage(cMessage *msg)
             case terminal_index_assign:{
                 //// Assign index from a satellite
 
-                // TODO: Complete handshake
                 if (terMsg->getReplyType() != -1){
                     //Satellite found an open gate for me
+
+                    EV << "Satellite " << terMsg->getSrcAddr() << " accepted terminal " << myAddress << endl;
 
                     switch (terMsg->getMode()){
                         case main:{
@@ -319,14 +355,16 @@ void TerminalApp::handleMessage(cMessage *msg)
                 else{
                     // Satellite didn't have an open slot
 
+                    EV << "Satellite " << terMsg->getSrcAddr() << " rejected terminal " << myAddress << endl;
+
                     // Delete satellite data
                     switch (terMsg->getDestAddr()){
                         case main:{
-                            resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex);
+                            resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex, updateMainSatellitePositionMsg);
                             break;
                         }
                         case sub:{
-                            resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex);
+                            resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
                             break;
                         }
                     }
@@ -369,13 +407,27 @@ bool TerminalApp::checkConnection(int mode){
     }
 }
 
-void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex){
+void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex, cMessage *updateMsg){
     satAddress = -1;
     satDispStr = nullptr;
     satPosX = -1;
     satPosY = -1;
     satUpdateInterval = -1;
     connectionIndex = -1;
+    if (updateMsg)
+        delete updateMsg;
+}
+
+void TerminalApp::findSatelliteToConnect(int ignoreIndex, int mode){
+    /* This function tries to connect the closest satellite to terminal, ignoring [ignoreIndex]
+     * */
+
+    int satAddress = getClosestSatellite(ignoreIndex);
+
+    if (satAddress != -1){
+        // Start handshake with satellite
+        connectToSatellite(satAddress, mode);
+    }
 }
 
 void TerminalApp::connectToSatellite(int satAddress, int mode){
@@ -399,8 +451,7 @@ void TerminalApp::connectToSatellite(int satAddress, int mode){
         }
     }
 
-    // TODO: Connection handshake start - send terminal_connection to satellite
-
+    // Ask to connect
     TerminalMsg *terMsg = new TerminalMsg("Connection Request", terminal);
     terMsg->setSrcAddr(myAddress);
     terMsg->setDestAddr(satAddress);
@@ -410,15 +461,45 @@ void TerminalApp::connectToSatellite(int satAddress, int mode){
 
     cModule *satellite = getParentModule()->getParentModule()->getSubmodule("rte", satAddress);
     sendDirect(terMsg, 0, terMsg->getByteLength()/rate, satellite->gate("terminalIn", 0));
+
+    EV << "Terminal " << myAddress << " attempted connection with satellite " << satAddress << endl;
 }
 
-void TerminalApp::disconnectFromSatellite(){
-    /* Disconnect from a satellite, and clear related database. Also, if the disconnected satellite is main, copy sub satellite's
-     *      data to main (if sub satellite exists)
-     * Reduces [isConnected] by 1.
+void TerminalApp::disconnectFromSatellite(int mode){
+    /* Clears local database and send disconnection message to the satellite.
      * */
 
-    // TODO: Disconnection process - send terminal_disconnection to satellite
+    int satAddress, gateIndex;
+    switch (mode){
+        case main:{
+            satAddress = mainSatAddress;
+            gateIndex = mainConnectionIndex;
+            cancelEvent(updateMainSatellitePositionMsg);
+            resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex, updateMainSatellitePositionMsg);
+            break;
+        }
+        case sub:{
+            satAddress = subSatAddress;
+            gateIndex = subConnectionIndex;
+            cancelEvent(updateSubSatellitePositionMsg);
+            resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
+            break;
+        }
+    }
+
+    // Send disconnection message
+    TerminalMsg *terMsg = new TerminalMsg("Disconnection Request", terminal);
+    terMsg->setSrcAddr(myAddress);
+    terMsg->setDestAddr(satAddress);
+    terMsg->setPacketType(terminal_disconnect);
+    terMsg->setMode(mode);
+    terMsg->setByteLength(0);
+
+    cModule *satellite = getParentModule()->getParentModule()->getSubmodule("rte", satAddress);
+    sendDirect(terMsg, satellite->gate("terminalIn", gateIndex));
+
+    EV << "Terminal " << myAddress << " attempted disconnection from satellite " << satAddress << endl;
+
     isConnected--;
 }
 
@@ -431,4 +512,24 @@ double TerminalApp::getRemainingTime(double updateInterval, double epsilon){
 
     double currSimTime = simTime().dbl();
     return updateInterval + epsilon - updateInterval * (currSimTime/updateInterval - int(currSimTime/updateInterval));
+}
+
+void TerminalApp::upgradeSubToMain(void){
+    mainSatAddress = subSatAddress;
+    mainSatDispStr = subSatDispStr;
+    mainSatPosX = subSatPosX;
+    mainSatPosY = subSatPosY;
+    mainSatUpdateInterval = subSatUpdateInterval;
+    mainConnectionIndex = subConnectionIndex;
+
+    // Move message from sub to main by deleting old and replacing it
+    /*if (updateMainSatellitePositionMsg){
+        cancelEvent(updateMainSatellitePositionMsg);
+        delete updateMainSatellitePositionMsg;
+        updateMainSatellitePositionMsg = nullptr;
+    }*/
+    updateMainSatellitePositionMsg = updateSubSatellitePositionMsg;
+    updateSubSatellitePositionMsg = nullptr;
+
+    resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
 }
