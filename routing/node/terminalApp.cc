@@ -20,9 +20,6 @@ Define_Module(TerminalApp);
 /*---------------------------------------PUBLIC FUNCTIONS---------------------------------------------------------------------------*/
 /************************************************************************************************************************************/
 TerminalApp::~TerminalApp(){
-    /*cancelAndDelete(appMsg);
-    cancelAndDelete(updateMyPositionMsg);
-    cancelAndDelete(updateSatellitePositionMsg);*/
     delete indexList;
 }
 
@@ -246,6 +243,13 @@ void TerminalApp::handleMessage(cMessage *msg)
                         // There is a sub satellite - it promotes to main
                         disconnectFromSatellite(main);
                         upgradeSubToMain();
+
+                        // Calculate exact time for position update + 0.01 and schedule position update
+                        double remainingTime = getRemainingTime(mainSatUpdateInterval);
+                        scheduleAt(simTime() + remainingTime, updateMainSatellitePositionMsg);
+
+                        EV << "Terminal " << myAddress << " upgrade complete for satellite " << mainSatAddress << endl;
+                        return;
                     }
                 }
 
@@ -408,6 +412,9 @@ bool TerminalApp::checkConnection(int mode){
 }
 
 void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex, cMessage *updateMsg){
+    /* Places default values inside given satellite database
+     * */
+
     satAddress = -1;
     satDispStr = nullptr;
     satPosX = -1;
@@ -515,6 +522,10 @@ double TerminalApp::getRemainingTime(double updateInterval, double epsilon){
 }
 
 void TerminalApp::upgradeSubToMain(void){
+    /* Replace main satellite's database + message with sub satellite's database
+     * */
+
+    // Copy data from sub satellite to main
     mainSatAddress = subSatAddress;
     mainSatDispStr = subSatDispStr;
     mainSatPosX = subSatPosX;
@@ -522,14 +533,15 @@ void TerminalApp::upgradeSubToMain(void){
     mainSatUpdateInterval = subSatUpdateInterval;
     mainConnectionIndex = subConnectionIndex;
 
-    // Move message from sub to main by deleting old and replacing it
-    /*if (updateMainSatellitePositionMsg){
+    // Move message from sub to main by canceling old and replacing it
+    if (updateMainSatellitePositionMsg){
         cancelEvent(updateMainSatellitePositionMsg);
-        delete updateMainSatellitePositionMsg;
+        cancelEvent(updateSubSatellitePositionMsg);
         updateMainSatellitePositionMsg = nullptr;
-    }*/
+    }
     updateMainSatellitePositionMsg = updateSubSatellitePositionMsg;
     updateSubSatellitePositionMsg = nullptr;
 
+    // Clear sub satellite data
     resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
 }
