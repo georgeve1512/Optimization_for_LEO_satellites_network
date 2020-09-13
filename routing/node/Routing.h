@@ -162,6 +162,7 @@ private:
                                       // For message collision avoidance in this module.
                                       // Size is calculated automatically from gateSize("terminalIn").
     int packetDropCounter;            // Number of terminal packets lost (No match in any of the above tables)
+    int maxHopCountForTerminalList;   // Decides when to drop terminal_list packets
 
     // Helpers
     bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module

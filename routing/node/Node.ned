@@ -28,7 +28,10 @@ module Node
         bool fullTopoRun = default(false);
         string appType;
         string mobilityType = default("SuperpositioningMobility");
+        
+        // Terminal handling
         int maxTerminalNumber = default(10);
+        int maxHopCountForTerminalList = default(2);
 
         @networkNode();
         @signal[check](type="long");

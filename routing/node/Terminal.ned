@@ -24,7 +24,6 @@ module Terminal
         int num_of_terminals = default(2);
         double radius @unit(m) = default(1000m);
         double frac;
-        
         string mobilityType;
         
         @networkNode();

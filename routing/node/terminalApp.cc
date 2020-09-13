@@ -16,6 +16,30 @@
 #include "terminalApp.h"
 
 Define_Module(TerminalApp);
+
+/************************************************************************************************************************************/
+/*---------------------------------------CODE FLOW IDEA-----------------------------------------------------------------------------*/
+/************************************************************************************************************************************/
+/* TerminalApp generates traffic (via self messages), and sends it to a satellite the terminal is connected to.
+ * There are 2 different kinds of satellite - [main] and [sub]. The [main] satellite is the first satellite the terminal has connected
+ *      to, and [sub] satellite is the second. When connected to sub satellite, the terminal would prioritize sending traffic to [sub]
+ *      as it is more probable to stay around (Although it is possible for the [main] satellite to be the better option).
+ * The self messages are of 3 different types:
+ *      1. Create traffic (normal traffic for example)
+ *      2. Update position - Keep track of the positions (=XY coordinates) of the 2 satellites and the terminal itself. Each update
+ *                      leads to connection check (if satellites are still in disk).
+ *      3. Initialize - INET's mobility module finishes initialization after this module, so self messages to finish
+ *                      location initialization are necessary.
+ *
+ * The connection process (referred as 'handshake' in code) is as following:
+ *      1. Connected satellites are chosen by minimum distance from terminal. [sub] satellites are chosen when [main] satellites
+ *              are at distance of [thresholdRadius] from terminal.
+ *      2. Send a [terminal_connect] message to a satellite. The satellite then begins looking for an open port to assign to terminal.
+ *      3. The satellite returns [terminal_assign_index] message, which contains port index. If no port was found the assigned index is
+*               -1, and every self message of traffic creation is ignored until a satellite is found.
+ * The disconnection method is different - send [terminal_disconnect] message and the satellite simply removes terminal from registry.
+ * */
+
 /************************************************************************************************************************************/
 /*---------------------------------------PUBLIC FUNCTIONS---------------------------------------------------------------------------*/
 /************************************************************************************************************************************/
@@ -209,7 +233,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                 //// Update self position & check satellite connection
 
                 updatePosition(myDispStr, myPosX, myPosY);
-                // TODO - Check connection
+                // TODO - Check connection, implement after finishing static terminal simulation
 
                 cancelEvent(updateMyPositionMsg);
                 scheduleAt(simTime() + updateInterval, updateMyPositionMsg);
@@ -264,7 +288,10 @@ void TerminalApp::handleMessage(cMessage *msg)
                 //// Update sub satellite position & check connection
 
                 updatePosition(subSatDispStr, subSatPosX, subSatPosY);
-                // TODO - Check connection
+                if (!checkConnection(sub)){
+                    // Sub satellite is too far away - disconnect
+                    disconnectFromSatellite(sub);
+                }
 
                 if (updateSubSatellitePositionMsg){
                     cancelEvent(updateSubSatellitePositionMsg);
