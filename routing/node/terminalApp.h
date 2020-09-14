@@ -17,17 +17,10 @@
 #define __ROUTING_TERMINALAPP_H_
 
 #include <omnetpp.h>
-#include "Routing.h" // For enums
+#include "enums.h"
+#include "TerminalMsg_m.h"
 
 using namespace omnetpp;
-enum selfMessageTypes{
-    interArrivalTime,
-    selfPositionUpdateTime,
-    mainSatellitePositionUpdateTime,
-    subSatellitePositionUpdateTime,
-    initializeMyPosition,
-    initializeConnection
-};
 
 
 /**
@@ -37,7 +30,7 @@ enum selfMessageTypes{
 class TerminalApp : public cSimpleModule
 {
     public:
-        ~TerminalApp();
+        // ~TerminalApp();
 
         // Auxiliary functions
         int getConnectedSatelliteAddress();
@@ -57,7 +50,6 @@ class TerminalApp : public cSimpleModule
         int numOfTerminals;         // How many terminals are
         double radius;              // Coverage radius
         double thresholdRadius;     // Threshold to look for a sub satellite. Calculated by radius * frac
-        int *indexList;             // For actual uniform choice between terminals (And not Geometric)
         int numOfSatellites;        // Number of satellites in simulation
 
         // Volatile Random Numbers - Expression is re-evaluated when reading value
@@ -105,7 +97,7 @@ class TerminalApp : public cSimpleModule
 
         // Satellite connectivity
         bool checkConnection(int mode);
-        void resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage *updateMsg);
+        void resetSatelliteData(int &satAddress, cDisplayString* &satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage* &updateMsg);
 
         // Sending connection messages
         void findSatelliteToConnect(int ignoreIndex, int mode);

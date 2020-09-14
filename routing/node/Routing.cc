@@ -13,9 +13,10 @@
 
 #include "Routing.h"
 
-//void Routing::finish(){
-//
-//}
+void Routing::finish(){
+    recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
+    EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
+}
 
 Routing::~Routing(void){
     delete isDirectPortTaken;
@@ -999,8 +1000,8 @@ void Routing::setNeighborsIndex() {
 }
 int Routing::findDest(int direction,int index){
     int row = 0;
-    int base = sqrt(num_of_hosts);
-    int col = index%base; // TODO: read parameter of colNum?
+    int base = getParentModule()->getParentModule()->par("colNum").intValue(); //sqrt(num_of_hosts);
+    int col = index%base;
     int temp = index;
     bool torus = true;
 
@@ -2091,23 +2092,51 @@ void Routing::handleMessage(cMessage *msg) {
                                 scheduleAt( simTime() + 3*changeRate, loadpm );
                            }
                        }
-                       //we learend about all the roots
+                       //we learned about all the roots
                        //how to get the total value of the path
                     }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 // lll   message == mySatAddress.
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                     case message :{
-                        /*TODO: decapsulate data, check if terminal connected (find in [myTerminalMap])
-                         *      if connected - send data to terminal
-                         *      if not - check neighbors (find in [neighborTerminalMap]).
-                         *               If a neighbor exists - encapsulate and re-send data.
-                         *               If not - drop and increase [packetDropCounter]
-                         *      remember to check [isDirectPortTaken[*]] to know which gate to use
-                         * */
+                        // Packet received is encapsulated
+                        TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(pk->decapsulate());
 
-                        //receive message. send to app
-                        send(pk , "localOut" );
+                        // Check if source exists in any table
+                        RoutingTable::iterator it = myTerminalMap.find(terMsg->getDestAddr());
+
+                        if (it != myTerminalMap.end()){
+                            //// Found terminal in my map
+
+                            if (isDirectPortTaken[it->second] == 1){
+                                // Main connection
+                                sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
+                            }
+                            else{
+                                // Sub connection
+                                sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"subIn");
+                            }
+
+                        }
+                        else{
+                            // Terminal is not in my map - check neighbors
+
+                            it = neighborTerminalMap.find(terMsg->getDestAddr());
+                            if (it != neighborTerminalMap.end()){
+                                // Neighbor has that terminal connected - Re-encapsulate and sent
+
+                                int outGateIndex = rtable.find(it->second)->second;
+                                Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
+                                send(newPacket, "out", outGateIndex);
+                            }
+                            else{
+                                // No known neighbor has the terminal connected
+                                delete terMsg;
+                                packetDropCounter++;
+                            }
+                        }
+
+                        delete pk;
                     }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 // lll   load_prediction message == mySatAddress.
@@ -2279,7 +2308,7 @@ void Routing::handleMessage(cMessage *msg) {
                                     sendMessage(pk,outGateIndex);
                                 }
                             }
-                }break; // TODO: ???
+                }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                     // lll  hot_potato destAddr != mySatAddress hot potato case (load balance).
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2376,6 +2405,13 @@ void Routing::handleMessage(cMessage *msg) {
                         return;
                     }
 
+                    /* TODO: Change pk->data[0] to be list length, pk->data[2i-1] to connection type, pk->data[2i] to address (i in [1..terminalNum])
+                     *       Every topology change will reset [neighborTerminalMap], and will result in every satellite broadcasting
+                     *       their lists.
+                     *       Maybe add an array in length of 2 * maxTerminalNumber + 1 to put data in.
+                     *       Packet size = 22*8 + terminalNum * (ceil(log2(num_of_terminals)) + 1) + ceil(log2(num_of_terminals)) [bits]
+                     * */
+
                     //// Read data to neighbor map
                     if (pk->data[0]){
                         // Terminal has connected to a neighbor - add terminal to neighbor map
@@ -2404,10 +2440,14 @@ void Routing::handleMessage(cMessage *msg) {
                     lst.unique();
 
                     // Broadcast terminal_list to all active links
+                    std::list<int>::iterator last = --lst.end(); // Last element in list
+
                     for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
-                        sendMessage(pk->dup(),*it);
+                        if (it != last)
+                            sendMessage(pk->dup(),*it);
+                        else
+                            sendMessage(pk, *it);
                     }
-                    delete pk;
 
                     break;
                 }
@@ -2499,8 +2539,17 @@ void Routing::handleMessage(cMessage *msg) {
                  *
                  *
                  */
-                // Note: Base message supposed to be like in App::sendMessage(), than send it
-                // use scheduleAt(simTime(), message) to above message
+
+                Packet* pk = createPacketForDestinationSatellite(terMsg);
+                if (pk){
+                    // Packet created successfully
+                    scheduleAt(simTime(), pk);
+                }
+                else{
+                    // No satellite will be connected to target terminal
+                    delete terMsg;
+                    packetDropCounter++;
+                }
 
                 break;
             }
@@ -2540,46 +2589,19 @@ void Routing::handleMessage(cMessage *msg) {
                  *        2. Byte length is 0 - This message is auxiliary for simulation, not a real message
                  *        3. Duration of transmission is also 0, for above reason
                  * */
-                TerminalMsg * ansMsg = new TerminalMsg("Satellite reply - index for terminal");
-                ansMsg->setKind(terminal);
+                TerminalMsg * ansMsg = new TerminalMsg("Satellite reply - index for terminal", terminal);
                 ansMsg->setSrcAddr(mySatAddress);
                 ansMsg->setDestAddr(terMsg->getSrcAddr());
                 ansMsg->setPacketType(terminal_index_assign);
                 ansMsg->setReplyType(assignedIndex);
                 ansMsg->setMode(mode);
                 ansMsg->setByteLength(0);
-                sendDirect(ansMsg, getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
+                sendDirect(ansMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
 
-                //// Notify neighbors
-                // Create information packet
-                Packet * terminalInfoPacket = new Packet("Terminal List update - add a new terminal");
-                terminalInfoPacket -> setSrcAddr(mySatAddress);
-                terminalInfoPacket -> setDestAddr(-1);
-                terminalInfoPacket -> setPacketType(terminal_list);
-                terminalInfoPacket -> setByteLength(64);// Ethernet protocol minimum frame size
-                terminalInfoPacket -> setHopCount(0);
+                // Notify neighbors
+                broadcastTerminalStatus(terMsg->getSrcAddr(), connected);
 
-                for(int i = 0; i < num_of_hosts; i++){
-                    terminalInfoPacket->data[i] = -1;
-                    terminalInfoPacket->datadouble[i] = -1;
-                }
-                terminalInfoPacket->data[0] = 1;
-                terminalInfoPacket->data[1] = terMsg->getSrcAddr();
-
-                // Get a list of all active links
-                std::list<int> lst;
-                for(int i = 0; i < rtable.size(); i++){
-                    lst.push_back(rtable[i]);
-                }
-                lst.sort(); // Necessary for lst.unique() to work properly
-                lst.unique();
-
-                // Broadcast terminal_list to all active links
-                for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
-                    send(terminalInfoPacket->dup(), "out",*it);
-                }
-                delete terminalInfoPacket;
-
+                delete terMsg;
                 break;
             }
             case terminal_disconnect:{
@@ -2595,36 +2617,10 @@ void Routing::handleMessage(cMessage *msg) {
 
                 EV << "Satellite " << mySatAddress << " has forgotten terminal " << terMsg->getSrcAddr() << " completely" << endl;
 
-                //// Notify neighbors
-                // Create information packet
-                Packet * terminalInfoPacket = new Packet("Terminal List update - remove a terminal");
-                terminalInfoPacket -> setSrcAddr(mySatAddress);
-                terminalInfoPacket -> setDestAddr(-1);
-                terminalInfoPacket -> setPacketType(terminal_list);
-                terminalInfoPacket -> setByteLength(64);// Ethernet protocol minimum frame size
-                terminalInfoPacket -> setHopCount(0);
+                // Notify neighbors
+                broadcastTerminalStatus(terMsg->getSrcAddr(), disconnected);
 
-                for(int i = 0; i < num_of_hosts; i++){
-                    terminalInfoPacket->data[i] = -1;
-                    terminalInfoPacket->datadouble[i] = -1;
-                }
-                terminalInfoPacket->data[0] = 0;
-                terminalInfoPacket->data[1] = terMsg->getSrcAddr();
-
-                // Get a list of all active links
-                std::list<int> lst;
-                for(int i = 0; i < rtable.size(); i++){
-                    lst.push_back(rtable[i]);
-                }
-                lst.sort(); // Necessary for lst.unique() to work properly
-                lst.unique();
-
-                // Broadcast terminal_list to all active links
-                for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
-                    send(terminalInfoPacket->dup(), "out",*it);
-                }
-                delete terminalInfoPacket;
-
+                delete terMsg;
                 break;
             }
             case terminal_index_assign:{
@@ -2635,7 +2631,104 @@ void Routing::handleMessage(cMessage *msg) {
                 break;
             }
         }
-
-        delete msg;
     }
 }
+
+int Routing::calculateFutureSatellite(int destTerminal){
+    /*
+     * */
+
+    cModule *ter = getParentModule()->getParentModule()->getSubmodule("terminal", destTerminal)->getSubmodule("app");
+    TerminalApp *terApp = check_and_cast<TerminalApp*>(ter);
+    return terApp->getConnectedSatelliteAddress();
+}
+
+Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction, int destSat){
+    /*  Creates an "Ethernet Frame" from a given terminal message ([terminalMessageToEncapsulate]) by encapsulating
+     *      it as payload.
+     *  This function calls [calculateFutureSatellite()] function to predict the destination satellite if [usePrediction] is true.
+     *      In this case [destSat] is ignored.
+     *  If [usePrediction] is false, destSat is used as destination satellite
+     *  Returns the resulting packet.
+     * */
+
+    int dst = usePrediction? calculateFutureSatellite(terminalMessageToEncapsulate->getDestAddr()) : destSat;
+    if (dst == -1){
+        // Either no satellite will be connected OR given satellite is invalid
+        return nullptr;
+    }
+
+    // Create Ethernet frame
+    Packet * terminalMessage = new Packet("Encapsulated terminal message");
+    terminalMessage -> setSrcAddr(mySatAddress);
+    terminalMessage -> setDestAddr(dst);
+    terminalMessage -> setPacketType(message);
+    terminalMessage -> setByteLength(22);     // Ethernet protocol header/trailer
+    terminalMessage -> setHopCount(0);
+    terminalMessage->setTopologyID(currTopoID);
+    int i=0;
+    while( i <  num_of_hosts )
+    {
+      terminalMessage->data[i] = -1;
+      terminalMessage->datadouble[i] = -1;
+      i++;
+    }
+    terminalMessage -> datadouble[0] = -2;
+
+    // Encapsulate payload
+    terminalMessage->encapsulate(terminalMessageToEncapsulate);     // frame size now is 1500 + 22 = 1522, which is Ethernet MTU
+
+    return terminalMessage;
+}
+
+void Routing::broadcastTerminalStatus(int terminalAddress, int status){
+    /* Send terminal_list packet to all neighbors on all active links about a terminal's connection [status]
+     *          (terminal is referred by [terminalAddress])
+     * If [status] = 1 then the said terminal is connected, else it's disconnected
+     * Main idea: 1. Create packet
+     *            2. Iterate over routing table to create a list of active links
+     *            3. Send a duplication of the message across all active links, last gets the original
+     * */
+
+    // Create informative packet name
+    std::string packetName = "Terminal List update - ";
+    if (status){
+        packetName += "add a new terminal";
+    }
+    else{
+        packetName += "remove a terminal";
+    }
+
+    // Create information packet - same base as in old App::sendMessage()
+    Packet * terminalInfoPacket = new Packet(packetName.c_str());
+    terminalInfoPacket -> setSrcAddr(mySatAddress);
+    terminalInfoPacket -> setDestAddr(-1);
+    terminalInfoPacket -> setPacketType(terminal_list);
+    terminalInfoPacket -> setByteLength(64);    // Ethernet protocol minimum frame size
+    terminalInfoPacket -> setHopCount(0);
+    for(int i = 0; i < num_of_hosts; i++){
+        terminalInfoPacket->data[i] = -1;
+        terminalInfoPacket->datadouble[i] = -1;
+    }
+    terminalInfoPacket->data[0] = status;
+    terminalInfoPacket->data[1] = terminalAddress;
+
+    // Get a list of all active links
+    std::list<int> lst;
+    for(int i = 0; i < rtable.size(); i++){
+        lst.push_back(rtable[i]);
+    }
+    lst.sort(); // Necessary for lst.unique() to work properly
+    lst.unique();
+
+    // Broadcast terminal_list to all active links
+    std::list<int>::iterator last = --lst.end(); // Last element in list
+
+    for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
+        if (it != last)
+            send(terminalInfoPacket->dup(), "out",*it);
+        else
+            send(terminalInfoPacket, "out",*it);
+    }
+}
+

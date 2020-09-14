@@ -8,6 +8,8 @@
 #include <iostream>
 #include "L2Queue.h"
 #include "TerminalMsg_m.h"
+#include "terminalApp.h"
+#include "enums.h"
 
 #define MAXAMOUNTOFLINKS 6          //lll: max number of links availble
 
@@ -29,35 +31,6 @@
 #define BASELINE_MODE 0
 using namespace omnetpp;
 using namespace std;
-enum direction_list {
-    left_d = 0,
-    up_d = 1,
-    right_d = 2,
-    down_d = 3,
-    diagonal_up = 4,
-    diagonal_down = 5,
-};
-enum packet_type_list {
-    initiale_packet = 1,
-    regular_packet = 2,
-    schedule_topo_packet = 3,
-    send_node_info_packet = 4,
-    update_app_packet = 10,
-    terminal_list = 5,
-    terminal_message = 6,
-    terminal_connect = 7,
-    terminal_disconnect = 8,
-    terminal_index_assign = 9
-};
-enum kind_list {
-    legacy = 0,
-    terminal = 1,
-};
-enum terminalModes{
-    main,
-    sub
-};
-
 
 
 class Routing: public cSimpleModule , public cListener
@@ -161,8 +134,12 @@ private:
     int *isDirectPortTaken;           // Dynamic array of {0,1,2} to indicate if the port is taken or not (0 = not in use, 1 = main, 2 = sub).
                                       // For message collision avoidance in this module.
                                       // Size is calculated automatically from gateSize("terminalIn").
-    int packetDropCounter;            // Number of terminal packets lost (No match in any of the above tables)
+    int packetDropCounter = 0;        // Number of terminal packets lost (No match in any of the above tables)
     int maxHopCountForTerminalList;   // Decides when to drop terminal_list packets
+    double estimatedLinkDelay = 1.2;  // Estimated average link delay, used for predictions
+                                      // Estimated time = # of hops to target satellite * [estimatedLinkDelay]
+                                      // TODO: implement estimatedTime calculation via ACKs. Right now 1.2 is used
+                                      // [(radius/speed)/# of satellites=(1500/50)/25=1.2sec]
 
     // Helpers
     bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module
@@ -171,7 +148,7 @@ private:
 protected:
     virtual void initialize() override;
     virtual void handleMessage(cMessage *msg) override;
-    //    virtual void finish() override;
+    virtual void finish() override;
 
     //// Init. aux. functions
     cTopology* CreateTopology(cTopology *Origtopo, const char* topoName);
@@ -256,11 +233,8 @@ protected:
 
     //// Terminals
     int calculateFutureSatellite(int destTerminal);
-    Packet *createPacketForDestinationSatellite(int destAddress, TerminalMsg *terminalMessageToEncapsulate);
+    Packet *createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction=true, int destSat = -1);
     void broadcastTerminalStatus(int terminalAddress, int status); // status = {connected/disconnected}
-
 };
 
 Define_Module(Routing);
-
-

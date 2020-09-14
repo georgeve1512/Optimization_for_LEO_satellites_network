@@ -5,45 +5,10 @@
 #include <string.h>
 #include <omnetpp.h>
 #include "Packet_m.h"
+#include "enums.h"
 #include <sstream>
-//#include "Routing.h"
 
 using namespace omnetpp;
-enum lables{
-    hot_potato_lable = -5,
-
-};
-//signaling object (used to notify router module on current queue status)
-enum last_routin {
-    leader_to_roots = 21,
-    route_from_root = 22,
-    app_initial = 23,
-    create_message = 24,
-    message = 25,
-    load_balance_reset = 26,
-    //load balancer
-    //TODO: might be buggy when number of nodes is greater than 25
-    hot_potato = 27,
-    ping_app = 28,
-    ping_ping = 29,
-    ping_pong = 30,
-    load_prediction = 31,
-    load_prediction_update = 32,
-    update_topology_leader = 33,
-    update_topology = 34,
-    turn_off_link = 35,
-    burst_app = 36,
-    burst_flow = 37,
-};
-
-//lll: choosing leader enum
-enum phase_list {
-    phase1_update = 11,             //Every node keep updates the id table untill he learns all the nodes (given const number)
-    phase2_link_info = 12,          //when finish the second phase, all the nodes wait for the topology  update to send packets
-    phase3_building_LAST_tree = 13, //Only the leader build the LAST_Tree and advertise it to all nodes
-  //  phase4_root_broadcast = 14,          //Only last root's will be recieving this message to build LAST tree
-};
-
 
 class  controlSignals : public cObject
 {

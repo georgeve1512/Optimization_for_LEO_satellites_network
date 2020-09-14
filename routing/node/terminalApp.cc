@@ -43,9 +43,9 @@ Define_Module(TerminalApp);
 /************************************************************************************************************************************/
 /*---------------------------------------PUBLIC FUNCTIONS---------------------------------------------------------------------------*/
 /************************************************************************************************************************************/
-TerminalApp::~TerminalApp(){
-    delete indexList;
-}
+//TerminalApp::~TerminalApp(){
+//
+//}
 
 void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
     /* Find the (X,Y) position of the terminal (self). The position is extracted from the mobility module's display string (the one that
@@ -144,21 +144,6 @@ void TerminalApp::initialize()
     rate =  check_and_cast<cDatarateChannel*>(getParentModule()->getParentModule()->getSubmodule("rte", 0)->getSubmodule("queue", 0)->gate("line$o")->getTransmissionChannel())->getDatarate();
     thresholdRadius = radius * getParentModule()->par("frac").doubleValue();
 
-    /* Create an index array of possible targets.
-     * The array is {0,1,...,numOfTerminals} without [myAddress].
-     * When choosing a destination we take a random integer (name it
-     *      'r') in range [0,numOfTerminals). That's the index
-     *      in the above array. The destination itself is indexList[r]
-     * In code: setDestAddr(indexList[intuniform(0, numOfTerminals-1)])
-     * */
-    indexList = new int[numOfTerminals-1];
-    for(int i = 0, j = 0; i < numOfTerminals; i++){
-        if (i != myAddress){
-            indexList[j] = i;
-            j++;
-        }
-    }
-
     //// Regular App
     sendIATime = &par("sendIaTime");
     packetLengthBytes = &par("packetLength");
@@ -200,10 +185,14 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                 if (isConnected){
                     // Terminal is connected to a satellite - create new message
-                    TerminalMsg * terMsg = new TerminalMsg("Regular Message");
-                    terMsg->setKind(terminal);
+                    TerminalMsg *terMsg = new TerminalMsg("Regular Message", terminal);
                     terMsg->setSrcAddr(myAddress);
-                    terMsg->setDestAddr(indexList[intuniform(0, numOfTerminals-1)]);
+
+                    int dst = intuniform(0, numOfTerminals-1);
+                    while (dst == myAddress){
+                        dst = intuniform(0, numOfTerminals-1);
+                    }
+                    terMsg->setDestAddr(dst);
                     terMsg->setPacketType(terminal_message);
                     terMsg->setByteLength(packetLengthBytes->intValue());
 
@@ -261,10 +250,12 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                     if (isConnected == 1){
                         // No sub - just disconnect
+                        EV << "Main is out of range" << endl;
                         disconnectFromSatellite(main);
                     }
                     else{
                         // There is a sub satellite - it promotes to main
+                        EV << "Main is out of range, upgrade sub to main" << endl;
                         disconnectFromSatellite(main);
                         upgradeSubToMain();
 
@@ -334,6 +325,9 @@ void TerminalApp::handleMessage(cMessage *msg)
         switch (terMsg->getPacketType()){
             case terminal_message:{
                 //// Received message from other terminal
+                if (hasGUI()){
+                    getParentModule()->bubble("Received message!");
+                }
 
                 // Record end-to-end delay
                 simtime_t eed = simTime() - terMsg->getCreationTime();
@@ -419,6 +413,9 @@ void TerminalApp::handleMessage(cMessage *msg)
 void TerminalApp::finish(){
     recordScalar("numSent",numSent);
     recordScalar("numReceived",numReceived);
+    EV_INFO << "Terminal " << myAddress << ":" << endl;
+    EV_INFO << "Received " << numReceived << " messages" << endl;
+    EV_INFO << "Sent " << numSent << " messages" << endl;
 }
 
 bool TerminalApp::checkConnection(int mode){
@@ -438,7 +435,7 @@ bool TerminalApp::checkConnection(int mode){
     }
 }
 
-void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex, cMessage *updateMsg){
+void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *&satDispStr, double &satPosX, double &satPosY, double &satUpdateInterval, int &connectionIndex, cMessage *&updateMsg){
     /* Places default values inside given satellite database
      * */
 
@@ -450,6 +447,7 @@ void TerminalApp::resetSatelliteData(int &satAddress, cDisplayString *satDispStr
     connectionIndex = -1;
     if (updateMsg)
         delete updateMsg;
+    updateMsg = nullptr;
 }
 
 void TerminalApp::findSatelliteToConnect(int ignoreIndex, int mode){
@@ -563,9 +561,9 @@ void TerminalApp::upgradeSubToMain(void){
     // Move message from sub to main by canceling old and replacing it
     if (updateMainSatellitePositionMsg){
         cancelEvent(updateMainSatellitePositionMsg);
-        cancelEvent(updateSubSatellitePositionMsg);
         updateMainSatellitePositionMsg = nullptr;
     }
+    cancelEvent(updateSubSatellitePositionMsg);
     updateMainSatellitePositionMsg = updateSubSatellitePositionMsg;
     updateSubSatellitePositionMsg = nullptr;
 

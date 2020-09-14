@@ -25,7 +25,7 @@ simple TerminalApp
         int address;  // local node address
         int numOfTerminals;
         volatile double sendIaTime @unit(s) = default(exponential(1ms)); // time between generating packets
-        volatile int packetLength @unit(byte) = default(1500byte);  // length of one message 1 megabit
+        volatile int packetLength @unit(byte) = default(1500byte);  	 // Ethernet maximum payload 
         volatile double burst_next_interval @unit(s) = default(truncnormal(100s,20s));
         volatile double burst_next_event @unit(s) = default(truncnormal(10s,2s));
         volatile int burst_size  = default(truncnormal(300,50));

@@ -5,7 +5,8 @@
 #include <vector>
 #include <omnetpp.h>
 #include "Packet_m.h"
-#include "Routing.h"
+#include "enums.h"
+
 #define CONTROL_NODE    99
 #define LAVI            1
 #define BURSTSIZE       300
@@ -16,6 +17,9 @@
 /**
  * Generates traffic for the network.
  */
+
+using namespace omnetpp;
+
 class App : public cSimpleModule
 {
 private:
