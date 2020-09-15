@@ -2101,7 +2101,7 @@ void Routing::handleMessage(cMessage *msg) {
                            resendTerminals->setSrcAddr(mySatAddress);
                            resendTerminals->setDestAddr(mySatAddress);
                            resendTerminals->setPacketType(terminal_list_resend);
-                           std::cout << "At time " << simTime() << endl;
+//                           std::cout << "At time " << simTime() << endl;
                            scheduleAt(simTime(), resendTerminals);
                        }
 
@@ -2110,44 +2110,52 @@ void Routing::handleMessage(cMessage *msg) {
                 // lll   message == mySatAddress.
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                     case message :{
-                        // Packet received is encapsulated
-                        TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(pk->decapsulate());
+                        if (!getParentModule()->getSubmodule("app")->par("hasApp").boolValue()){
+                            //// New message code
+                            // Packet received is encapsulated
+                            TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(pk->decapsulate());
 
-                        // Check if source exists in any table
-                        RoutingTable::iterator it = myTerminalMap.find(terMsg->getDestAddr());
+                            // Check if source exists in any table
+                            RoutingTable::iterator it = myTerminalMap.find(terMsg->getDestAddr());
 
-                        if (it != myTerminalMap.end()){
-                            //// Found terminal in my map
+                            if (it != myTerminalMap.end()){
+                                //// Found terminal in my map
 
-                            if (isDirectPortTaken[it->second] == 1){
-                                // Main connection
-                                sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
+                                if (isDirectPortTaken[it->second] == 1){
+                                    // Main connection
+                                    sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
+                                }
+                                else{
+                                    // Sub connection
+                                    sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"subIn");
+                                }
+
                             }
                             else{
-                                // Sub connection
-                                sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"subIn");
+                                // Terminal is not in my map - check neighbors
+
+                                it = neighborTerminalMap.find(terMsg->getDestAddr());
+                                if (it != neighborTerminalMap.end()){
+                                    // Neighbor has that terminal connected - Re-encapsulate and sent
+
+                                    int outGateIndex = rtable.find(it->second)->second;
+                                    Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
+                                    send(newPacket, "out", outGateIndex);
+                                }
+                                else{
+                                    // No known neighbor has the terminal connected
+                                    delete terMsg;
+                                    packetDropCounter++;
+                                }
                             }
 
+                            delete pk;
                         }
                         else{
-                            // Terminal is not in my map - check neighbors
-
-                            it = neighborTerminalMap.find(terMsg->getDestAddr());
-                            if (it != neighborTerminalMap.end()){
-                                // Neighbor has that terminal connected - Re-encapsulate and sent
-
-                                int outGateIndex = rtable.find(it->second)->second;
-                                Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
-                                send(newPacket, "out", outGateIndex);
-                            }
-                            else{
-                                // No known neighbor has the terminal connected
-                                delete terMsg;
-                                packetDropCounter++;
-                            }
+                            //// Legacy code
+                            //recive message. send to app
+                            send( (cMessage*)pk , "localOut" );
                         }
-
-                        delete pk;
                     }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 // lll   load_prediction message == mySatAddress.

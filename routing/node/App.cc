@@ -119,7 +119,7 @@ void App::createFlow( int pivotRoundRobin )
     Packet * createBurst = new Packet("Burst App");
     createBurst -> setPacketType( burst_app );
     createBurst -> data[0] = pivotRoundRobin;
-    createBurst -> datadouble[0] = burstSize -> operator int();
+    createBurst -> datadouble[0] = (int)(burstSize->doubleValue());
     scheduleAt(simTime() + burstNextEvent->doubleValue() ,createBurst);
 }
 

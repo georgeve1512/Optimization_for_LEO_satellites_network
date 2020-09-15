@@ -23,7 +23,7 @@ simple App like IApp
         volatile int packetLength @unit(byte) = default(1500byte);  // length of one message 1 megabit
         volatile double burst_next_interval @unit(s) = default(truncnormal(100s,20s));
         volatile double burst_next_event @unit(s) = default(truncnormal(10s,2s));
-        volatile int burst_size  = default(truncnormal(300,50));
+        volatile double burst_size  = default(truncnormal(300,50));
         @display("i=block/browser");
         @signal[endToEndDelay](type="simtime_t");
         @signal[hopCount](type="long");
