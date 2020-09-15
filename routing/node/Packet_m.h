@@ -44,6 +44,9 @@ class Packet : public ::omnetpp::cPacket
   public:
     int data[NUMOFNODES];
     double datadouble[NUMOFNODES];
+    int terminalList[NUMOFNODES];
+    int terminalConnectionStatus[NUMOFNODES];
+    int terminalListLength = 0;
   protected:
     //int numOfNodes;
     int srcAddr = 0;

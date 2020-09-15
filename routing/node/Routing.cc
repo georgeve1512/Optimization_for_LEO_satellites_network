@@ -568,7 +568,6 @@ void Routing::initRtable(cTopology* thisTopo, cTopology::Node *thisNode) {
                       << gateIndex << endl;
         }
     }
-
 }
 
 int Routing::GetW(cTopology::Node *nodeU, cTopology::Node *nodeV) {
@@ -2067,7 +2066,7 @@ void Routing::handleMessage(cMessage *msg) {
 
                         thisNode = topo->getNodeFor(getParentModule());
                         initRtable(topo, thisNode);
-                        //    int a = pk->data[0];
+
                         if (pk->getTopologyVarForUpdate())
                             pk->deleteTopologyVar();
                         delete pk;
@@ -2094,6 +2093,18 @@ void Routing::handleMessage(cMessage *msg) {
                        }
                        //we learned about all the roots
                        //how to get the total value of the path
+
+                       if (pathcounter == rootCounter){
+                           // After learning all paths, clear all neighbor terminal knowledge, and broadcast my terminal database
+                           neighborTerminalMap.clear();
+                           Packet *resendTerminals = new Packet("Re-send terminals packet (self message)");
+                           resendTerminals->setSrcAddr(mySatAddress);
+                           resendTerminals->setDestAddr(mySatAddress);
+                           resendTerminals->setPacketType(terminal_list_resend);
+                           std::cout << "At time " << simTime() << endl;
+                           scheduleAt(simTime(), resendTerminals);
+                       }
+
                     }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 // lll   message == mySatAddress.
@@ -2228,6 +2239,11 @@ void Routing::handleMessage(cMessage *msg) {
                         keepAliveTempLinksFlag = false;
                         delete pk;
                      }break;
+                    case terminal_list_resend:{
+                        broadcastTerminalStatus(-1, -1, true);
+                        delete pk;
+                        break;
+                    }
                 } // End of switch statement
             } // End of destination if
 
@@ -2397,7 +2413,6 @@ void Routing::handleMessage(cMessage *msg) {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 case terminal_list:{
                     //// A neighbor satellite broadcasted a change in its terminals
-
                     if (pk->getHopCount() == maxHopCountForTerminalList){
                         // Max hops reached - drop packet
                         delete pk;
@@ -2413,21 +2428,24 @@ void Routing::handleMessage(cMessage *msg) {
                      * */
 
                     //// Read data to neighbor map
-                    if (pk->data[0]){
-                        // Terminal has connected to a neighbor - add terminal to neighbor map
+                    int loopCnt = pk->terminalListLength;
+                    for(int i = 0; i < loopCnt; i++){
+                        if (pk->terminalConnectionStatus[i]){
+                            // Terminal has connected to a neighbor - add terminal to neighbor map
 
-                        neighborTerminalMap[pk->data[1]] = pk->getSrcAddr();
-                        EV << "Satellite " << mySatAddress << " added satellite " << pk->getSrcAddr() << "'s terminal " << pk->data[1] << endl;
-                    }
-                    else {
-                        // Terminal has disconnected from a neighbor - remove terminal from neighbor map
+                            neighborTerminalMap[pk->terminalList[i]] = pk->getSrcAddr();
+                            EV << "Satellite " << mySatAddress << " added satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
+                        }
+                        else {
+                            // Terminal has disconnected from a neighbor - remove terminal from neighbor map
 
-                        // Check if source exists in table and delete it
-                        RoutingTable::iterator it;
-                        it = neighborTerminalMap.find(pk->data[1]);
-                        if (it != neighborTerminalMap.end()){
-                            neighborTerminalMap.erase(it);
-                            EV << "Satellite " << mySatAddress << " deleted satellite " << pk->getSrcAddr() << "'s terminal " << pk->data[1] << endl;
+                            // Check if source exists in table and delete it
+                            RoutingTable::iterator it;
+                            it = neighborTerminalMap.find(pk->terminalList[i]);
+                            if (it != neighborTerminalMap.end()){
+                                neighborTerminalMap.erase(it);
+                                EV << "Satellite " << mySatAddress << " deleted satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
+                            }
                         }
                     }
 
@@ -2681,10 +2699,11 @@ Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessag
     return terminalMessage;
 }
 
-void Routing::broadcastTerminalStatus(int terminalAddress, int status){
+void Routing::broadcastTerminalStatus(int terminalAddress, int status, bool loadAllConnections){
     /* Send terminal_list packet to all neighbors on all active links about a terminal's connection [status]
      *          (terminal is referred by [terminalAddress])
      * If [status] = 1 then the said terminal is connected, else it's disconnected
+     * If [loadAllConnections] is true, load all known terminals in this message and ignores [terminalAddress]/[status]
      * Main idea: 1. Create packet
      *            2. Iterate over routing table to create a list of active links
      *            3. Send a duplication of the message across all active links, last gets the original
@@ -2692,11 +2711,26 @@ void Routing::broadcastTerminalStatus(int terminalAddress, int status){
 
     // Create informative packet name
     std::string packetName = "Terminal List update - ";
-    if (status){
-        packetName += "add a new terminal";
+    if (!loadAllConnections){
+        // Local update - either a terminal joined or moved
+        if (status){
+            packetName += "add a new terminal";
+        }
+        else{
+            packetName += "remove a terminal";
+        }
     }
     else{
-        packetName += "remove a terminal";
+        // Send all connected terminals
+
+        if (myTerminalMap.empty()){
+            // No terminals are connected
+            EV << "Satellite " << mySatAddress << " has no terminals to re-send" << endl;
+            return;
+        }
+
+        // At least 1 terminal is connected
+        packetName += "all known connections (satellite " + std::to_string(mySatAddress) + ")";
     }
 
     // Create information packet - same base as in old App::sendMessage()
@@ -2706,12 +2740,23 @@ void Routing::broadcastTerminalStatus(int terminalAddress, int status){
     terminalInfoPacket -> setPacketType(terminal_list);
     terminalInfoPacket -> setByteLength(64);    // Ethernet protocol minimum frame size
     terminalInfoPacket -> setHopCount(0);
-    for(int i = 0; i < num_of_hosts; i++){
-        terminalInfoPacket->data[i] = -1;
-        terminalInfoPacket->datadouble[i] = -1;
+
+    if (loadAllConnections){
+        // Send all known connections to neighbors
+        terminalInfoPacket->terminalListLength = myTerminalMap.size();
+
+        int i = 0;
+        for(RoutingTable::iterator it = myTerminalMap.begin(); it != myTerminalMap.end(); it++, i++){
+            terminalInfoPacket->terminalConnectionStatus[i] = connected;
+            terminalInfoPacket->terminalList[i] = it->first;
+        }
     }
-    terminalInfoPacket->data[0] = status;
-    terminalInfoPacket->data[1] = terminalAddress;
+    else{
+        // Only local update
+        terminalInfoPacket->terminalListLength = 1;
+        terminalInfoPacket->terminalConnectionStatus[0] = status;
+        terminalInfoPacket->terminalList[0] = terminalAddress;
+    }
 
     // Get a list of all active links
     std::list<int> lst;

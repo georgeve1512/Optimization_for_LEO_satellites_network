@@ -57,7 +57,8 @@ enum packet_type_list {
     terminal_message = 6,
     terminal_connect = 7,
     terminal_disconnect = 8,
-    terminal_index_assign = 9
+    terminal_index_assign = 9,
+    terminal_list_resend = 15,
 };
 
 // Kind list - for future use

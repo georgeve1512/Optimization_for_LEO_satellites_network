@@ -234,7 +234,7 @@ protected:
     //// Terminals
     int calculateFutureSatellite(int destTerminal);
     Packet *createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction=true, int destSat = -1);
-    void broadcastTerminalStatus(int terminalAddress, int status); // status = {connected/disconnected}
+    void broadcastTerminalStatus(int terminalAddress, int status, bool loadAllConnections = false);
 };
 
 Define_Module(Routing);

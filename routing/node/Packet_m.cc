@@ -215,6 +215,11 @@ Packet::Packet(const char *name, short kind) : ::omnetpp::cPacket(name, kind)
 Packet::Packet(const Packet& other) : ::omnetpp::cPacket(other)
 {
     copy(other);
+    this->terminalListLength = other.terminalListLength;
+    for(int i = 0; i < this->terminalListLength; i++){
+        this->terminalList[i] = other.terminalList[i];
+        this->terminalConnectionStatus[i] = other.terminalConnectionStatus[i];
+    }
 }
 
 Packet::~Packet()
