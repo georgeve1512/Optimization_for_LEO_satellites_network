@@ -30,7 +30,7 @@ using namespace omnetpp;
 class TerminalApp : public cSimpleModule
 {
     public:
-        // ~TerminalApp();
+         ~TerminalApp();
 
         // Auxiliary functions
         int getConnectedSatelliteAddress();
@@ -44,6 +44,7 @@ class TerminalApp : public cSimpleModule
         cMessage *updateMainSatellitePositionMsg; // Reduce memory allocations
         cMessage *updateSubSatellitePositionMsg;  // Reduce memory allocations
         double rate;
+        int *indexList;
 
         // Simulation parameters
         int myAddress;              // UID

@@ -43,9 +43,9 @@ Define_Module(TerminalApp);
 /************************************************************************************************************************************/
 /*---------------------------------------PUBLIC FUNCTIONS---------------------------------------------------------------------------*/
 /************************************************************************************************************************************/
-//TerminalApp::~TerminalApp(){
-//
-//}
+TerminalApp::~TerminalApp(){
+    delete indexList;
+}
 
 void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
     /* Find the (X,Y) position of the terminal (self). The position is extracted from the mobility module's display string (the one that
@@ -144,6 +144,21 @@ void TerminalApp::initialize()
     rate =  check_and_cast<cDatarateChannel*>(getParentModule()->getParentModule()->getSubmodule("rte", 0)->getSubmodule("queue", 0)->gate("line$o")->getTransmissionChannel())->getDatarate();
     thresholdRadius = radius * getParentModule()->par("frac").doubleValue();
 
+    /* Create an index array of possible targets.
+     * The array is {0,1,...,numOfTerminals} without [myAddress].
+     * When choosing a destination we take a random integer (name it
+     *      'r') in range [0,numOfTerminals). That's the index
+     *      in the above array. The destination itself is indexList[r]
+     * In code: setDestAddr(indexList[intuniform(0, numOfTerminals-2)])
+     * */
+    indexList = new int[numOfTerminals-1];
+    for(int i = 0, j = 0; i < numOfTerminals; i++){
+        if (i != myAddress){
+            indexList[j] = i;
+            j++;
+        }
+    }
+
     //// Regular App
     sendIATime = &par("sendIaTime");
     packetLengthBytes = &par("packetLength");
@@ -187,12 +202,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                     // Terminal is connected to a satellite - create new message
                     TerminalMsg *terMsg = new TerminalMsg("Regular Message", terminal);
                     terMsg->setSrcAddr(myAddress);
-
-                    int dst = intuniform(0, numOfTerminals-1);
-                    while (dst == myAddress){
-                        dst = intuniform(0, numOfTerminals-1);
-                    }
-                    terMsg->setDestAddr(dst);
+                    terMsg->setDestAddr(indexList[intuniform(0, numOfTerminals-2)]);
                     terMsg->setPacketType(terminal_message);
                     terMsg->setByteLength(packetLengthBytes->intValue());
 
