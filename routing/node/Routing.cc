@@ -985,6 +985,7 @@ void Routing::schduleNewTopology() {
     schduleTopologyUpdate();
 
 }
+
 void Routing::schduleTopologyUpdate()
 {
     Packet *topoUpdate = new Packet("topo update!!");
@@ -994,13 +995,15 @@ void Routing::schduleTopologyUpdate()
     topoUpdate  -> setTopologyID(currTopoID);
     scheduleAt( simTime() + changeRate, topoUpdate );
 }
+
 void Routing::setNeighborsIndex() {
     for ( int i = 0; i < topo -> getNode(mySatAddress)->getNumInLinks(); i++ )
         neighbors[i]=findDest(i,mySatAddress);
 }
+
 int Routing::findDest(int direction,int index){
     int row = 0;
-    int base = getParentModule()->getParentModule()->par("colNum").intValue(); //sqrt(num_of_hosts);
+    int base = getParentModule()->getParentModule()->par("colNum").intValue();
     int col = index%base;
     int temp = index;
     bool torus = true;
@@ -1647,10 +1650,14 @@ int* Routing::getNeighborsArr(int index,int* arr)
     return arr;
 }
 
-// Create an array of roots for LAST
-//       [m] - is the parameter of the algorithm
-//       [OrigTopo] - an MST
 void Routing::getRootsArray(cTopology *OrigTopo, int m){
+    /* Create an array of roots for LAST. Traverse diameter (iteratively) ceil((nodeNum - m)/m)
+     *      hops, and each node at that distance becomes a root for LAST topology.
+     * Input:
+     *      [m] - is a parameter of the algorithm
+     *      [OrigTopo] - an MST, calculated by primMST
+     * */
+
     int nodeNum = OrigTopo->getNumNodes();
     int dist = ceil((nodeNum - m)/m);
     int src, dst, diameter = INT_MAX;
@@ -1674,10 +1681,12 @@ void Routing::getRootsArray(cTopology *OrigTopo, int m){
     delete tmpTopo;
 }
 
-// Traverse Diameter (from [src] to [dst]) [dist] steps, and delete all nodes in path.
-// Return the address of the last node visited (in distance [dist] or end of path)
-// NOTE: Never send the original topology to this function - it changes [OrigTopo]
 int Routing::getInnerNodeFromDiameter(cTopology *OrigTopo, int dist, int src, int dst){
+    /* Traverse Diameter (from given [src] to [dst]) [dist] steps, and delete all nodes in path.
+     * Return the address of the last node visited (in distance [dist] or end of path)
+     * NOTE: Never send the original topology to this function - it changes [OrigTopo]
+     * */
+
     cTopology::LinkOut *tempLinkOut;
 
     // Switch topology information to refer to [dst]
@@ -1702,13 +1711,14 @@ int Routing::getInnerNodeFromDiameter(cTopology *OrigTopo, int dist, int src, in
     return curr->getModule()->par("address").intValue();
 }
 
-// Find [OrigTopo]'s diameter by checking all combinations
-// Returns the diameter, and the indexes of the nodes:
-//       [src] - Start of diameter
-//       [dst] - End of diameter
-// Note: [OrigTopo] should be MST calculated by primMST
-
 int Routing::getDiameter(cTopology *OrigTopo, int *src, int *dst){
+    /* Find [OrigTopo]'s diameter by checking all combinations and looking for the longest
+     *      shortest path.
+     * Returns diameter length, and the indexes of the 2 nodes the diameter starts and finishes:
+     *      [src] - Start of diameter
+     *      [dst] - End of diameter
+     * NOTE: [OrigTopo] should be MST calculated by primMST
+     * */
 
     int numOfNodes = OrigTopo->getNumNodes();
     int pathWeight;
@@ -1722,7 +1732,6 @@ int Routing::getDiameter(cTopology *OrigTopo, int *src, int *dst){
             other = OrigTopo->getNode(j);
             OrigTopo->calculateUnweightedSingleShortestPathsTo(other);
             pathWeight = curr->getDistanceToTarget();
-            //EV << "dij=" << pathWeight << " i=" << i << " j=" <<j<<endl;
             if (pathWeight > 0 && pathWeight > diameter){
                 diameter = pathWeight;
                 *src = i;
@@ -1730,12 +1739,144 @@ int Routing::getDiameter(cTopology *OrigTopo, int *src, int *dst){
             }
         }
     }
-    //std::cout << "Diameter is " << diameter << " src=" << *src << " dst=" << *dst << endl;
 
     return diameter;
 }
 
+int Routing::calculateFutureSatellite(int destTerminal){
+    /*
+     * */
 
+    /* TODO: 1. Implement ACK mechanism for messages
+     *       2. Using ACKs estimate average link delay
+     *       3. This function will calculate the future satellite by looking for the closest satellite to terminal
+     *              in (average link delay * hops) = T time.
+     *              New position = (old position + v * T) % (maxY - minY)
+     *                  NOTES: might change to -v, depends on direction.
+     *                         maxY - minY is "total map size", the modulo is for the wrap
+     * */
+
+    cModule *ter = getParentModule()->getParentModule()->getSubmodule("terminal", destTerminal)->getSubmodule("app");
+    TerminalApp *terApp = check_and_cast<TerminalApp*>(ter);
+    return terApp->getConnectedSatelliteAddress();
+}
+
+Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction, int destSat){
+    /*  Creates an "Ethernet Frame" from a given terminal message ([terminalMessageToEncapsulate]) by encapsulating
+     *      it as payload.
+     *  This function calls [calculateFutureSatellite()] function to predict the destination satellite if [usePrediction] is true.
+     *      In this case [destSat] is ignored.
+     *  If [usePrediction] is false, destSat is used as destination satellite
+     *  Returns the resulting packet.
+     * */
+
+    int dst = usePrediction? calculateFutureSatellite(terminalMessageToEncapsulate->getDestAddr()) : destSat;
+    if (dst == -1){
+        // Either no satellite will be connected OR given satellite is invalid
+        EV << "Satellite " << mySatAddress << " didn't find any connected satellites to terminal " << terminalMessageToEncapsulate->getDestAddr() << endl;
+        return nullptr;
+    }
+
+    // Create Ethernet frame
+    Packet * terminalMessage = new Packet("Encapsulated terminal message");
+    terminalMessage -> setSrcAddr(mySatAddress);
+    terminalMessage -> setDestAddr(dst);
+    terminalMessage -> setPacketType(message);
+    terminalMessage -> setByteLength(22);     // Ethernet protocol header/trailer
+    terminalMessage -> setHopCount(0);
+    terminalMessage->setTopologyID(currTopoID);
+    int i=0;
+    while( i <  num_of_hosts )
+    {
+      terminalMessage->data[i] = -1;
+      terminalMessage->datadouble[i] = -1;
+      i++;
+    }
+    terminalMessage -> datadouble[0] = -2;
+
+    // Encapsulate payload
+    terminalMessage->encapsulate(terminalMessageToEncapsulate);     // frame size now is 1500 + 22 = 1522, which is Ethernet MTU
+
+    return terminalMessage;
+}
+
+void Routing::broadcastTerminalStatus(int terminalAddress, int status, bool loadAllConnections){
+    /* Send terminal_list packet to all neighbors on all active links about a terminal's connection [status]
+     *          (terminal is referred by [terminalAddress])
+     * If [status] = 1 then the said terminal is connected, else it's disconnected
+     * If [loadAllConnections] is true, load all known terminals in this message and ignores [terminalAddress]/[status]
+     * Main idea: 1. Create packet
+     *            2. Iterate over routing table to create a list of active links
+     *            3. Send a duplication of the message across all active links, last gets the original
+     * */
+
+    // Create informative packet name
+    std::string packetName = "Terminal List update - ";
+    if (!loadAllConnections){
+        // Local update - either a terminal joined or moved
+        if (status){
+            packetName += "add a new terminal";
+        }
+        else{
+            packetName += "remove a terminal";
+        }
+    }
+    else{
+        // Send all connected terminals
+
+        if (myTerminalMap.empty()){
+            // No terminals are connected
+            EV << "Satellite " << mySatAddress << " has no terminals to re-send" << endl;
+            return;
+        }
+
+        // At least 1 terminal is connected
+        packetName += "all known connections (satellite " + std::to_string(mySatAddress) + ")";
+    }
+
+    // Create information packet - same base as in old App::sendMessage()
+    Packet * terminalInfoPacket = new Packet(packetName.c_str());
+    terminalInfoPacket -> setSrcAddr(mySatAddress);
+    terminalInfoPacket -> setDestAddr(-1);
+    terminalInfoPacket -> setPacketType(terminal_list);
+    terminalInfoPacket -> setByteLength(64);    // Ethernet protocol minimum frame size
+    terminalInfoPacket -> setHopCount(0);
+
+    if (loadAllConnections){
+        // Send all known connections to neighbors
+        terminalInfoPacket->terminalListLength = myTerminalMap.size();
+
+        int i = 0;
+        for(RoutingTable::iterator it = myTerminalMap.begin(); it != myTerminalMap.end(); it++, i++){
+            terminalInfoPacket->terminalConnectionStatus[i] = connected;
+            terminalInfoPacket->terminalList[i] = it->first;
+        }
+    }
+    else{
+        // Only local update
+        terminalInfoPacket->terminalListLength = 1;
+        terminalInfoPacket->terminalConnectionStatus[0] = status;
+        terminalInfoPacket->terminalList[0] = terminalAddress;
+    }
+
+    // Get a list of all active links
+    std::list<int> lst;
+    for(int i = 0; i < rtable.size(); i++){
+        lst.push_back(rtable[i]);
+    }
+    lst.sort(); // Necessary for lst.unique() to work properly
+    lst.unique();
+
+    // Broadcast terminal_list to all active links
+    std::list<int>::iterator last = --lst.end(); // Last element in list
+
+    for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
+        if (it != last)
+            send(terminalInfoPacket->dup(), "out",*it);
+        else
+            send(terminalInfoPacket, "out",*it);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2657,130 +2798,3 @@ void Routing::handleMessage(cMessage *msg) {
         }
     }
 }
-
-int Routing::calculateFutureSatellite(int destTerminal){
-    /*
-     * */
-
-    cModule *ter = getParentModule()->getParentModule()->getSubmodule("terminal", destTerminal)->getSubmodule("app");
-    TerminalApp *terApp = check_and_cast<TerminalApp*>(ter);
-    return terApp->getConnectedSatelliteAddress();
-}
-
-Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction, int destSat){
-    /*  Creates an "Ethernet Frame" from a given terminal message ([terminalMessageToEncapsulate]) by encapsulating
-     *      it as payload.
-     *  This function calls [calculateFutureSatellite()] function to predict the destination satellite if [usePrediction] is true.
-     *      In this case [destSat] is ignored.
-     *  If [usePrediction] is false, destSat is used as destination satellite
-     *  Returns the resulting packet.
-     * */
-
-    int dst = usePrediction? calculateFutureSatellite(terminalMessageToEncapsulate->getDestAddr()) : destSat;
-    if (dst == -1){
-        // Either no satellite will be connected OR given satellite is invalid
-        EV << "Satellite " << mySatAddress << " didn't find any connected satellites to terminal " << terminalMessageToEncapsulate->getDestAddr() << endl;
-        return nullptr;
-    }
-
-    // Create Ethernet frame
-    Packet * terminalMessage = new Packet("Encapsulated terminal message");
-    terminalMessage -> setSrcAddr(mySatAddress);
-    terminalMessage -> setDestAddr(dst);
-    terminalMessage -> setPacketType(message);
-    terminalMessage -> setByteLength(22);     // Ethernet protocol header/trailer
-    terminalMessage -> setHopCount(0);
-    terminalMessage->setTopologyID(currTopoID);
-    int i=0;
-    while( i <  num_of_hosts )
-    {
-      terminalMessage->data[i] = -1;
-      terminalMessage->datadouble[i] = -1;
-      i++;
-    }
-    terminalMessage -> datadouble[0] = -2;
-
-    // Encapsulate payload
-    terminalMessage->encapsulate(terminalMessageToEncapsulate);     // frame size now is 1500 + 22 = 1522, which is Ethernet MTU
-
-    return terminalMessage;
-}
-
-void Routing::broadcastTerminalStatus(int terminalAddress, int status, bool loadAllConnections){
-    /* Send terminal_list packet to all neighbors on all active links about a terminal's connection [status]
-     *          (terminal is referred by [terminalAddress])
-     * If [status] = 1 then the said terminal is connected, else it's disconnected
-     * If [loadAllConnections] is true, load all known terminals in this message and ignores [terminalAddress]/[status]
-     * Main idea: 1. Create packet
-     *            2. Iterate over routing table to create a list of active links
-     *            3. Send a duplication of the message across all active links, last gets the original
-     * */
-
-    // Create informative packet name
-    std::string packetName = "Terminal List update - ";
-    if (!loadAllConnections){
-        // Local update - either a terminal joined or moved
-        if (status){
-            packetName += "add a new terminal";
-        }
-        else{
-            packetName += "remove a terminal";
-        }
-    }
-    else{
-        // Send all connected terminals
-
-        if (myTerminalMap.empty()){
-            // No terminals are connected
-            EV << "Satellite " << mySatAddress << " has no terminals to re-send" << endl;
-            return;
-        }
-
-        // At least 1 terminal is connected
-        packetName += "all known connections (satellite " + std::to_string(mySatAddress) + ")";
-    }
-
-    // Create information packet - same base as in old App::sendMessage()
-    Packet * terminalInfoPacket = new Packet(packetName.c_str());
-    terminalInfoPacket -> setSrcAddr(mySatAddress);
-    terminalInfoPacket -> setDestAddr(-1);
-    terminalInfoPacket -> setPacketType(terminal_list);
-    terminalInfoPacket -> setByteLength(64);    // Ethernet protocol minimum frame size
-    terminalInfoPacket -> setHopCount(0);
-
-    if (loadAllConnections){
-        // Send all known connections to neighbors
-        terminalInfoPacket->terminalListLength = myTerminalMap.size();
-
-        int i = 0;
-        for(RoutingTable::iterator it = myTerminalMap.begin(); it != myTerminalMap.end(); it++, i++){
-            terminalInfoPacket->terminalConnectionStatus[i] = connected;
-            terminalInfoPacket->terminalList[i] = it->first;
-        }
-    }
-    else{
-        // Only local update
-        terminalInfoPacket->terminalListLength = 1;
-        terminalInfoPacket->terminalConnectionStatus[0] = status;
-        terminalInfoPacket->terminalList[0] = terminalAddress;
-    }
-
-    // Get a list of all active links
-    std::list<int> lst;
-    for(int i = 0; i < rtable.size(); i++){
-        lst.push_back(rtable[i]);
-    }
-    lst.sort(); // Necessary for lst.unique() to work properly
-    lst.unique();
-
-    // Broadcast terminal_list to all active links
-    std::list<int>::iterator last = --lst.end(); // Last element in list
-
-    for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
-        if (it != last)
-            send(terminalInfoPacket->dup(), "out",*it);
-        else
-            send(terminalInfoPacket, "out",*it);
-    }
-}
-

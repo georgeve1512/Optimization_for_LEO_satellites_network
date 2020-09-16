@@ -35,9 +35,12 @@ Define_Module(TerminalApp);
  *      1. Connected satellites are chosen by minimum distance from terminal. [sub] satellites are chosen when [main] satellites
  *              are at distance of [thresholdRadius] from terminal.
  *      2. Send a [terminal_connect] message to a satellite. The satellite then begins looking for an open port to assign to terminal.
- *      3. The satellite returns [terminal_assign_index] message, which contains port index. If no port was found the assigned index is
-*               -1, and every self message of traffic creation is ignored until a satellite is found.
+ *      3. The satellite returns [terminal_index_assign] message, which contains port index. If no port was found the assigned index is
+ *               -1, and every self message of traffic creation is ignored until a satellite is found.
  * The disconnection method is different - send [terminal_disconnect] message and the satellite simply removes terminal from registry.
+ *
+ * When not connected to any satellite, the "update self position message" self message needs to be sent each update interval, to try
+ *      and connect to any satellite to continue transmitting data to other terminals.
  * */
 
 /************************************************************************************************************************************/
@@ -593,7 +596,7 @@ void TerminalApp::upgradeSubToMain(void){
     mainSatUpdateInterval = subSatUpdateInterval;
     mainConnectionIndex = subConnectionIndex;
 
-    // Move message from sub to main by canceling old and replacing it
+    // Cancel & delete both messages
     if (updateMainSatellitePositionMsg){
         cancelEvent(updateMainSatellitePositionMsg);
         delete updateMainSatellitePositionMsg;
@@ -603,6 +606,7 @@ void TerminalApp::upgradeSubToMain(void){
     delete updateSubSatellitePositionMsg;
     updateSubSatellitePositionMsg = nullptr;
 
+    // Replace old main message with a new one (Ensures no segmentation fault occurs because of upgrade)
     updateMainSatellitePositionMsg = new cMessage("Main Satellite Position Update Self Message",mainSatellitePositionUpdateTime);
 
     // Clear sub satellite data
