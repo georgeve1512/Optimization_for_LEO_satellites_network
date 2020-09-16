@@ -140,7 +140,7 @@ private:
                                       // Estimated time = # of hops to target satellite * [estimatedLinkDelay]
                                       // TODO: implement estimatedTime calculation via ACKs. Right now 1.2 is used
                                       // [(radius/speed)/# of satellites=(1500/50)/25=1.2sec]
-
+    int packetDropCounterFromHops = 0;// Debugging
     // Helpers
     bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module
                                       // Will become true after parsing the position from grid

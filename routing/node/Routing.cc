@@ -16,6 +16,7 @@
 void Routing::finish(){
     recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
     EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
+    EV << "Dropped packets due to high number of hops (Load balancing): " << packetDropCounterFromHops << endl;
 }
 
 Routing::~Routing(void){
@@ -2101,7 +2102,6 @@ void Routing::handleMessage(cMessage *msg) {
                            resendTerminals->setSrcAddr(mySatAddress);
                            resendTerminals->setDestAddr(mySatAddress);
                            resendTerminals->setPacketType(terminal_list_resend);
-//                           std::cout << "At time " << simTime() << endl;
                            scheduleAt(simTime(), resendTerminals);
                        }
 
@@ -2121,6 +2121,8 @@ void Routing::handleMessage(cMessage *msg) {
                             if (it != myTerminalMap.end()){
                                 //// Found terminal in my map
 
+                                EV << "Terminal " << terMsg->getDestAddr() << " is connected to me - satellite " << mySatAddress << endl;
+
                                 if (isDirectPortTaken[it->second] == 1){
                                     // Main connection
                                     sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
@@ -2138,12 +2140,15 @@ void Routing::handleMessage(cMessage *msg) {
                                 if (it != neighborTerminalMap.end()){
                                     // Neighbor has that terminal connected - Re-encapsulate and sent
 
+                                    EV << "Terminal " << terMsg->getDestAddr() << " is connected to my neighbor - satellite " << it->second << endl;
+
                                     int outGateIndex = rtable.find(it->second)->second;
                                     Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
-                                    send(newPacket, "out", outGateIndex);
+                                    sendMessage(newPacket, outGateIndex);
                                 }
                                 else{
                                     // No known neighbor has the terminal connected
+                                    EV << "Terminal " << terMsg->getDestAddr() << " is not around, dropping message" <<endl;
                                     delete terMsg;
                                     packetDropCounter++;
                                 }
@@ -2273,6 +2278,8 @@ void Routing::handleMessage(cMessage *msg) {
 
                     //load_balance
                     if(pk -> getHopCount() > 20){
+                        packetDropCounterFromHops++;
+
                         if (pk->getTopologyVarForUpdate())
                             pk->deleteTopologyVar();
                         delete pk;
@@ -2375,7 +2382,6 @@ void Routing::handleMessage(cMessage *msg) {
                     RoutingTable::iterator it = rtable.find(destAddr);
                     int outGateIndex = (*it).second;
 
-                    //TODO: ???
                     int j=1;
                     while(pk->data[j]!=-1){
                         if(pk->data[j] == mySatAddress){
@@ -2427,13 +2433,6 @@ void Routing::handleMessage(cMessage *msg) {
                         EV << "Satellite " << mySatAddress << " dropped terminal_list packet (too many hops)" << endl;
                         return;
                     }
-
-                    /* TODO: Change pk->data[0] to be list length, pk->data[2i-1] to connection type, pk->data[2i] to address (i in [1..terminalNum])
-                     *       Every topology change will reset [neighborTerminalMap], and will result in every satellite broadcasting
-                     *       their lists.
-                     *       Maybe add an array in length of 2 * maxTerminalNumber + 1 to put data in.
-                     *       Packet size = 22*8 + terminalNum * (ceil(log2(num_of_terminals)) + 1) + ceil(log2(num_of_terminals)) [bits]
-                     * */
 
                     //// Read data to neighbor map
                     int loopCnt = pk->terminalListLength;
@@ -2576,7 +2575,6 @@ void Routing::handleMessage(cMessage *msg) {
                     delete terMsg;
                     packetDropCounter++;
                 }
-
                 break;
             }
             case terminal_connect:{
@@ -2681,6 +2679,7 @@ Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessag
     int dst = usePrediction? calculateFutureSatellite(terminalMessageToEncapsulate->getDestAddr()) : destSat;
     if (dst == -1){
         // Either no satellite will be connected OR given satellite is invalid
+        EV << "Satellite " << mySatAddress << " didn't find any connected satellites to terminal " << terminalMessageToEncapsulate->getDestAddr() << endl;
         return nullptr;
     }
 

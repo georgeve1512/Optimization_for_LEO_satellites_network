@@ -101,7 +101,7 @@ class TerminalApp : public cSimpleModule
         void resetSatelliteData(int &satAddress, cDisplayString* &satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage* &updateMsg);
 
         // Sending connection messages
-        void findSatelliteToConnect(int ignoreIndex, int mode);
+        int findSatelliteToConnect(int ignoreIndex, int mode);
         void connectToSatellite(int satAddress, int mode);
         void disconnectFromSatellite(int mode);
 
