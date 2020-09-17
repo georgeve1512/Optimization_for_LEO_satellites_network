@@ -37,11 +37,13 @@ OBJS = \
     $O/node/L2Queue.o \
     $O/node/Routing.o \
     $O/node/terminalApp.o \
+    $O/node/AckMsg_m.o \
     $O/node/Packet_m.o \
     $O/node/TerminalMsg_m.o
 
 # Message files
 MSGFILES = \
+    node/AckMsg.msg \
     node/Packet.msg \
     node/TerminalMsg.msg
 

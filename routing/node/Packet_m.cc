@@ -228,7 +228,6 @@ Packet::~Packet()
     delete [] this->packetList;
 }
 
-
 Packet& Packet::operator=(const Packet& other)
 {
     if (this == &other) return *this;
@@ -258,6 +257,8 @@ void Packet::copy(const Packet& other)
     for (size_t i = 0; i < packetList_arraysize; i++) {
         this->packetList[i] = other.packetList[i];
     }
+    this->lastHopTime = other.lastHopTime;
+
 }
 
 void Packet::parsimPack(omnetpp::cCommBuffer *b) const
@@ -274,6 +275,7 @@ void Packet::parsimPack(omnetpp::cCommBuffer *b) const
     doParsimArrayPacking(b,this->gateIDList,gateIDList_arraysize);
     b->pack(packetList_arraysize);
     doParsimArrayPacking(b,this->packetList,packetList_arraysize);
+    doParsimPacking(b,this->lastHopTime);
 }
 
 void Packet::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -302,6 +304,7 @@ void Packet::parsimUnpack(omnetpp::cCommBuffer *b)
         this->packetList = new int[packetList_arraysize];
         doParsimArrayUnpacking(b,this->packetList,packetList_arraysize);
     }
+    doParsimUnpacking(b,this->lastHopTime);
 }
 
 int Packet::getSrcAddr() const
@@ -506,6 +509,16 @@ void Packet::erasePacketList(size_t k)
     packetList_arraysize = newSize;
 }
 
+double Packet::getLastHopTime() const
+{
+    return this->lastHopTime;
+}
+
+void Packet::setLastHopTime(double lastHopTime)
+{
+    this->lastHopTime = lastHopTime;
+}
+
 class PacketDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -520,6 +533,7 @@ class PacketDescriptor : public omnetpp::cClassDescriptor
         FIELD_TopologyID,
         FIELD_gateIDList,
         FIELD_packetList,
+        FIELD_lastHopTime,
     };
   public:
     PacketDescriptor();
@@ -582,7 +596,7 @@ const char *PacketDescriptor::getProperty(const char *propertyname) const
 int PacketDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
-    return basedesc ? 9+basedesc->getFieldCount() : 9;
+    return basedesc ? 10+basedesc->getFieldCount() : 10;
 }
 
 unsigned int PacketDescriptor::getFieldTypeFlags(int field) const
@@ -603,8 +617,9 @@ unsigned int PacketDescriptor::getFieldTypeFlags(int field) const
         FD_ISEDITABLE,    // FIELD_TopologyID
         FD_ISARRAY | FD_ISEDITABLE,    // FIELD_gateIDList
         FD_ISARRAY | FD_ISEDITABLE,    // FIELD_packetList
+        FD_ISEDITABLE,    // FIELD_lastHopTime
     };
-    return (field >= 0 && field < 9) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 10) ? fieldTypeFlags[field] : 0;
 }
 
 const char *PacketDescriptor::getFieldName(int field) const
@@ -625,8 +640,9 @@ const char *PacketDescriptor::getFieldName(int field) const
         "TopologyID",
         "gateIDList",
         "packetList",
+        "lastHopTime",
     };
-    return (field >= 0 && field < 9) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 10) ? fieldNames[field] : nullptr;
 }
 
 int PacketDescriptor::findField(const char *fieldName) const
@@ -642,6 +658,7 @@ int PacketDescriptor::findField(const char *fieldName) const
     if (fieldName[0] == 'T' && strcmp(fieldName, "TopologyID") == 0) return base+6;
     if (fieldName[0] == 'g' && strcmp(fieldName, "gateIDList") == 0) return base+7;
     if (fieldName[0] == 'p' && strcmp(fieldName, "packetList") == 0) return base+8;
+    if (fieldName[0] == 'l' && strcmp(fieldName, "lastHopTime") == 0) return base+9;
     return basedesc ? basedesc->findField(fieldName) : -1;
 }
 
@@ -663,8 +680,9 @@ const char *PacketDescriptor::getFieldTypeString(int field) const
         "int",    // FIELD_TopologyID
         "int",    // FIELD_gateIDList
         "int",    // FIELD_packetList
+        "double",    // FIELD_lastHopTime
     };
-    return (field >= 0 && field < 9) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 10) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **PacketDescriptor::getFieldPropertyNames(int field) const
@@ -712,6 +730,10 @@ const char **PacketDescriptor::getFieldPropertyNames(int field) const
             static const char *names[] = { "packetData",  nullptr };
             return names;
         }
+        case FIELD_lastHopTime: {
+            static const char *names[] = { "packetData",  nullptr };
+            return names;
+        }
         default: return nullptr;
     }
 }
@@ -750,6 +772,9 @@ const char *PacketDescriptor::getFieldProperty(int field, const char *propertyna
             if (!strcmp(propertyname, "packetData")) return "";
             return nullptr;
         case FIELD_packetList:
+            if (!strcmp(propertyname, "packetData")) return "";
+            return nullptr;
+        case FIELD_lastHopTime:
             if (!strcmp(propertyname, "packetData")) return "";
             return nullptr;
         default: return nullptr;
@@ -806,6 +831,7 @@ std::string PacketDescriptor::getFieldValueAsString(void *object, int field, int
         case FIELD_TopologyID: return long2string(pp->getTopologyID());
         case FIELD_gateIDList: return long2string(pp->getGateIDList(i));
         case FIELD_packetList: return long2string(pp->getPacketList(i));
+        case FIELD_lastHopTime: return double2string(pp->getLastHopTime());
         default: return "";
     }
 }
@@ -828,6 +854,7 @@ bool PacketDescriptor::setFieldValueAsString(void *object, int field, int i, con
         case FIELD_TopologyID: pp->setTopologyID(string2long(value)); return true;
         case FIELD_gateIDList: pp->setGateIDList(i,string2long(value)); return true;
         case FIELD_packetList: pp->setPacketList(i,string2long(value)); return true;
+        case FIELD_lastHopTime: pp->setLastHopTime(string2double(value)); return true;
         default: return false;
     }
 }

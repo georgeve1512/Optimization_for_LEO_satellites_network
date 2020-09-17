@@ -51,8 +51,10 @@ TerminalApp::~TerminalApp(){
 }
 
 void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
-    /* Find the (X,Y) position of the terminal (self). The position is extracted from the mobility module's display string (the one that
+    /* Find the (X,Y) position of the a module via its display string [cDispStr].
+     * The position is extracted from the mobility module's display string (the one that
      *      changes during runtime).
+     * Position is stored in given [posX] & [posY]
      * */
 
     std::string dispStr(cDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
@@ -74,11 +76,11 @@ int TerminalApp::getConnectedSatelliteAddress(){
      * */
 
     switch (isConnected){
-        case 1:{
+        case connected:{
             // Only one is connected, that is the main
             return mainSatAddress;
         }
-        case 2:{
+        case connectedToSub:{
             // Two are connected, return the sub satellite (More likely to be around when the packet is sent)
             return subSatAddress;
         }
@@ -182,7 +184,7 @@ void TerminalApp::initialize()
     scheduleAt(simTime(), new cMessage("Initialize self position", initializeMyPosition));
 
     // Initialize satellite database
-    isConnected = 0;
+    isConnected = disconnected;
     resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex, updateMainSatellitePositionMsg);
     resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
 
@@ -213,7 +215,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                     /* Note - sendDirect(cMessage *msg, simtime_t propagationDelay, simtime_t duration, cModule *mod, const char *gateName, int index=-1)
                      *        is being used here.
                      * */
-                    if (isConnected == 1)
+                    if (isConnected == connected)
                         sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", mainSatAddress),"terminalIn", mainConnectionIndex);
                     else
                         sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", subSatAddress),"terminalIn", subConnectionIndex);
@@ -262,7 +264,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                 if (checkConnection(main)){
                     // Satellite is still around the terminal
 
-                    if (isConnected == 1){ // If no sub exists
+                    if (isConnected == connected){ // If no sub exists
                         // Check if distance is greater than threshold
                         if (getDistanceFromSatellite(mainSatAddress) >= thresholdRadius){
 
@@ -275,7 +277,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                 else{
                     // Terminal is too far away and is no longer connected
 
-                    if (isConnected == 1){
+                    if (isConnected == connected){
                         // No sub - just disconnect
                         EV << "Main is out of range" << endl;
                         disconnectFromSatellite(main);
@@ -380,7 +382,7 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                     switch (terMsg->getMode()){
                         case main:{
-                            isConnected = 1;
+                            isConnected = connected;
 
                             mainConnectionIndex = terMsg->getReplyType();
                             if (!updateMainSatellitePositionMsg){
@@ -395,7 +397,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                             break;
                         }
                         case sub:{
-                            isConnected = 2;
+                            isConnected = connectedToSub;
 
                             subConnectionIndex = terMsg->getReplyType();
                             if (!updateSubSatellitePositionMsg){

@@ -10,8 +10,10 @@
 #include "TerminalMsg_m.h"
 #include "terminalApp.h"
 #include "enums.h"
+#include "AckMsg_m.h"
 
-#define MAXAMOUNTOFLINKS 6          //lll: max number of links availble
+#define MAXAMOUNTOFLINKS 6          //lll: max number of links available
+#define DEFAULT_DELAY 0.0003        // 3msec
 
 //lll: weight range. not in use
 #define MAX_VALUE 10000
@@ -29,6 +31,7 @@
 //#define NUMOFNODES 25
 #define LOAD_PREDICTION_INTERVAL 14  //search and predict the load every 5sec
 #define BASELINE_MODE 0
+
 using namespace omnetpp;
 using namespace std;
 
@@ -134,16 +137,25 @@ private:
     int *isDirectPortTaken;           // Dynamic array of {0,1,2} to indicate if the port is taken or not (0 = not in use, 1 = main, 2 = sub).
                                       // For message collision avoidance in this module.
                                       // Size is calculated automatically from gateSize("terminalIn").
-    int packetDropCounter = 0;        // Number of terminal packets lost (No match in any of the above tables)
     int maxHopCountForTerminalList;   // Decides when to drop terminal_list packets
+
+    // Helpers
+    bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module
+                                      // Will become true after parsing the position from grid
+
+    //// Delay & position prediction
+    int packetDropCounter = 0;        // Number of terminal packets lost (No match in any of the above tables)
+    int packetDropCounterFromHops = 0;// Debugging
     double estimatedLinkDelay = 1.2;  // Estimated average link delay, used for predictions
                                       // Estimated time = # of hops to target satellite * [estimatedLinkDelay]
                                       // TODO: implement estimatedTime calculation via ACKs. Right now 1.2 is used
                                       // [(radius/speed)/# of satellites=(1500/50)/25=1.2sec]
-    int packetDropCounterFromHops = 0;// Debugging
-    // Helpers
-    bool positionAtGrid = true;       // Whether the satellite starts at its position as calculated by grid sub module
-                                      // Will become true after parsing the position from grid
+    double linkDelay[MAXAMOUNTOFLINKS];     // Current average delay for the i-th link
+    int linkMsgNum[MAXAMOUNTOFLINKS] = {0};       // How many messages were getting in via link i
+    int totalMsgNum = 0;                          // Sum of above array, accelerates calculation by a bit
+
+    typedef std::set<long> MessageIDSet;
+    MessageIDSet msgSet;            // Collection of message ID's waiting to be ACK'ed
 
 protected:
     virtual void initialize() override;
@@ -213,7 +225,7 @@ protected:
     int getLinkIndex(int req);
     int getNeighborIndex(int req);
     void setActiveLinks();
-    void sendMessage(Packet *pk,int outGateIndex);
+    void sendMessage(Packet *pk,int outGateIndex, bool transmitAck = true);
     int loadBalanceLinkFinder( int reqLink ,int incominglink,Packet *pk );
     int loadBalanceLinkPrediction(int reqLink,int incominglink);
     int loadBalance(int reqLink,int incominglink);
@@ -232,9 +244,15 @@ protected:
     int* getNeighborsArr(int index,int* arr);
 
     //// Terminals
-    int calculateFutureSatellite(int destTerminal);
     Packet *createPacketForDestinationSatellite(TerminalMsg *terminalMessageToEncapsulate, bool usePrediction=true, int destSat = -1);
     void broadcastTerminalStatus(int terminalAddress, int status, bool loadAllConnections = false);
+
+    //// Link delay & satellite position prediction
+    int calculateFutureSatellite(int destTerminal);
+    void sendAck(Packet *pk);
+    double getAverageLinkDelay();
+    void getPosition(int satAddress, double &posX, double &posY);
+    void updateLinkDelay(int linkIndex, double delay);
 };
 
 Define_Module(Routing);

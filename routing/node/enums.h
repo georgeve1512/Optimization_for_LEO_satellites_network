@@ -64,7 +64,8 @@ enum packet_type_list {
 // Kind list - for future use
 enum kind_list {
     legacy = 0,
-    terminal = 1,
+    terminal,
+    ack
 };
 
 // Terminal/satellite modes
@@ -76,7 +77,8 @@ enum terminalModes{
 // Terminal connection status
 enum terminalConnectionStatus{
     disconnected = 0,
-    connected = 1
+    connected = 1,
+    connectedToSub = 2
 };
 
 // Types of self messages in terminal
@@ -88,5 +90,7 @@ enum selfMessageTypes{
     initializeMyPosition,
     initializeConnection
 };
+
+#define ACK_SIZE 5
 
 #endif

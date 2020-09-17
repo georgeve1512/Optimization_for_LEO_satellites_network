@@ -36,6 +36,7 @@ class Packet;
  *     int TopologyID \@packetData;
  *     int gateIDList[] \@packetData;
  *     int packetList[] \@packetData;
+ *     double lastHopTime \@packetData;
  * }
  * </pre>
  */
@@ -48,7 +49,6 @@ class Packet : public ::omnetpp::cPacket
     int terminalConnectionStatus[NUMOFNODES];
     int terminalListLength = 0;
   protected:
-    //int numOfNodes;
     int srcAddr = 0;
     int destAddr = 0;
     int hopCount = 0;
@@ -60,6 +60,7 @@ class Packet : public ::omnetpp::cPacket
     size_t gateIDList_arraysize = 0;
     int *packetList = nullptr;
     size_t packetList_arraysize = 0;
+    double lastHopTime = 0;
 
   private:
     void copy(const Packet& other);
@@ -107,6 +108,8 @@ class Packet : public ::omnetpp::cPacket
     virtual void insertPacketList(int packetList);
     virtual void insertPacketList(size_t k, int packetList);
     virtual void erasePacketList(size_t k);
+    virtual double getLastHopTime() const;
+    virtual void setLastHopTime(double lastHopTime);
     void deleteTopologyVar() { delete TopologyVar; TopologyVar = NULL;};
 };
 

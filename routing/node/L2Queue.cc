@@ -247,9 +247,18 @@ void L2Queue::handleMessage(cMessage *msg)
         // We are currently busy, so just queue up the packet.
         if (endTransmissionEvent->isScheduled()) {
             //drop the packet (unless its control plane message)
+
+            if (msg->getKind() == ack){
+                // ACK message is a control packet - enqueue
+                msg->setTimestamp();
+                priorityQueue.insert(msg);
+                return;
+            }
+
             if (frameCapacity && queue.getLength() >= frameCapacity) {
                 EV << "Received " << msg << " but transmitter busy and queue full: discarding\n";
-                if (check_and_cast<Packet *>(msg) -> getPacketType() == leader_to_roots ||  check_and_cast<Packet *>(msg) -> getPacketType() == route_from_root ||check_and_cast<Packet *>(msg) -> getPacketType() == phase2_link_info)
+                int pktType = check_and_cast<Packet *>(msg) -> getPacketType();
+                if (pktType == leader_to_roots ||  pktType == route_from_root || pktType == phase2_link_info || pktType == terminal_list || pktType == terminal_list_resend)
                 {
                     msg->setTimestamp();
                     priorityQueue.insert(msg);
@@ -269,7 +278,9 @@ void L2Queue::handleMessage(cMessage *msg)
             //queue is not full. enqueue the message
             else {
                 //control plane message
-                if (check_and_cast<Packet *>(msg) -> getPacketType() == leader_to_roots ||  check_and_cast<Packet *>(msg) -> getPacketType() == route_from_root ||check_and_cast<Packet *>(msg) -> getPacketType() == phase2_link_info)
+
+                int pktType = check_and_cast<Packet *>(msg) -> getPacketType();
+                if (pktType == leader_to_roots ||  pktType == route_from_root || pktType == phase2_link_info || pktType == terminal_list || pktType == terminal_list_resend)
                 {
                     msg->setTimestamp();
                     priorityQueue.insert(msg);

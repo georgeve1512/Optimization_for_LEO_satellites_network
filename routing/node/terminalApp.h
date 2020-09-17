@@ -37,6 +37,7 @@ class TerminalApp : public cSimpleModule
         void updatePosition(cDisplayString *cDispStr, double &posX, double &posY); // NOTE: Simulation must run on 'fast' or lower in order for this function to work properly
         double getDistanceFromSatellite(int satAddress);
         int getClosestSatellite(int ignoreIndex);
+        void getPos(double &posX, double &posY) {posX = myPosX; posY = myPosY;};
     protected:
         // Simulation helpers
         cMessage *appMsg;                         // Reduce memory allocations

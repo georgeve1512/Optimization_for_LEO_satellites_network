@@ -16,7 +16,8 @@
 void Routing::finish(){
     recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
     EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
-    EV << "Dropped packets due to high number of hops (Load balancing): " << packetDropCounterFromHops << endl;
+    EV << "Dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
+    EV << "Satellite " << mySatAddress << " had delay of " << getAverageLinkDelay() << endl;
 }
 
 Routing::~Routing(void){
@@ -1376,9 +1377,17 @@ void Routing::receiveSignal(cComponent *source, simsignal_t signalID, const char
 
 }
 
-void Routing::sendMessage(Packet * pk, int outGateIndex)
+void Routing::sendMessage(Packet * pk, int outGateIndex, bool transmitAck)
 {
     pk->setHopCount(pk->getHopCount()+1);
+
+    // NOTE: New code for ACK
+    if (transmitAck){
+        sendAck(pk);
+    }
+    pk->setLastHopTime(simTime().dbl());        // Set time-stamp (that is unchanged by queue)
+    if (pk->getPacketType() == message)
+        msgSet.insert(pk->getId());             // Wait for an ACK only for messages
 
     if( load_balance_mode && active_links > 2 )
     {
@@ -1409,6 +1418,7 @@ void Routing::sendMessage(Packet * pk, int outGateIndex)
       if (pk->getTopologyVarForUpdate())
           pk->deleteTopologyVar();
       delete pk;
+      packetDropCounterFromHops++;
     }
     else
     {
@@ -1872,9 +1882,9 @@ void Routing::broadcastTerminalStatus(int terminalAddress, int status, bool load
 
     for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
         if (it != last)
-            send(terminalInfoPacket->dup(), "out",*it);
+            sendMessage(terminalInfoPacket->dup(), *it, false);
         else
-            send(terminalInfoPacket, "out",*it);
+            sendMessage(terminalInfoPacket, *it, false);
     }
 }
 
@@ -1974,6 +1984,10 @@ void Routing::initialize() {
     // Max hop count for terminal_list
     maxHopCountForTerminalList = getParentModule()->par("maxHopCountForTerminalList").intValue();
 
+    //// Link delay prediction
+    for(int i = 0; i < MAXAMOUNTOFLINKS; i++)
+        linkDelay[i] = DEFAULT_DELAY;
+
     //set initial topo weight's (1on each link)
     setLinksWeight(topo, 0);
     //init Routing table from topology
@@ -2015,786 +2029,913 @@ void Routing::initialize() {
 
 void Routing::handleMessage(cMessage *msg) {
 
-    if (!msg->getKind()){
-        //// Kind = 0 -> Legacy code - Lavi's old code
-        Packet *pk = check_and_cast<Packet *>(msg);
-        int destAddr = pk->getDestAddr();
-        int srcAddr = pk->getSrcAddr();
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // lll   destAddr == mySatAddress
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        if(destAddr == mySatAddress){
-            // Current satellite is the target satellite
-                switch(pk->getPacketType()){
+    switch (msg->getKind()){
+        case legacy:{
+
+            //// Kind = 0 -> Legacy code - Lavi's old code. [Packet]  messages go here
+            Packet *pk = check_and_cast<Packet *>(msg);
+            int destAddr = pk->getDestAddr();
+            int srcAddr = pk->getSrcAddr();
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll phase1_update  destAddr == mySatAddress
+            // lll   destAddr == mySatAddress
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case phase1_update:{
-                        // Start Leader Election
-                        if (srcAddr == mySatAddress){
-                            // initial message (initialize or re-election)
-                            if (pk->getTopologyVarForUpdate())
-                                pk->deleteTopologyVar();
-                            delete pk;
-                            leader_table[mySatAddress] = mySatAddress; // first update its only me
-                            if (hasGUI())
-                                getParentModule()->bubble("Schedule choosing leader phase 1!");
-                            send_phase1_update();// update message
-                        }
-                        else{
-                            //wait to get everyone's ids
-                            if(phase1Flag){
-                                update_leader_table(pk);
+            if(destAddr == mySatAddress){
+                // Current satellite is the target satellite
+                    switch(pk->getPacketType()){
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll phase1_update  destAddr == mySatAddress
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case phase1_update:{
+                            // Start Leader Election
+                            if (srcAddr == mySatAddress){
+                                // initial message (initialize or re-election)
                                 if (pk->getTopologyVarForUpdate())
                                     pk->deleteTopologyVar();
                                 delete pk;
-                                send_phase1_update();
+                                leader_table[mySatAddress] = mySatAddress; // first update its only me
+                                if (hasGUI())
+                                    getParentModule()->bubble("Schedule choosing leader phase 1!");
+                                send_phase1_update();// update message
                             }
                             else{
+                                //wait to get everyone's ids
+                                if(phase1Flag){
+                                    update_leader_table(pk);
+                                    if (pk->getTopologyVarForUpdate())
+                                        pk->deleteTopologyVar();
+                                    delete pk;
+                                    send_phase1_update();
+                                }
+                                else{
+                                    if (pk->getTopologyVarForUpdate())
+                                        pk->deleteTopologyVar();
+                                    delete pk;
+                                }
+                            }
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll phase2_link_info  destAddr == mySatAddress
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case phase2_link_info:{
+                            // Leader gathers information about links
+                            if(mySatAddress != leader){
+                                // I'm not leader
+                                leader = pk->getSrcAddr(); //only leader can send this type of message
+                                if (pk->getTopologyVarForUpdate())
+                                    pk->deleteTopologyVar();
+                                delete pk;
+
+                                //we have leader so we can raise the flag(if we didn't already)
+                                phase1Flag = 0;
+
+                                // send info to leader
+                                send_link_info_to_leader();
+                            }
+                            else {
+                                // I'm the leader - save data
+                                for( int i = 0; i < 4; i++ )
+                                    n_table[pk->getSrcAddr()][pk->data[i]] = pk->datadouble[i];
+
+                                linkdatacounter++;
+                                if(linkdatacounter == num_of_hosts-1 ){
+                                    // gathered all data possible
+                                    linkdatacounter = 0;
+                                    schduleNewTopology();
+                                }
                                 if (pk->getTopologyVarForUpdate())
                                     pk->deleteTopologyVar();
                                 delete pk;
                             }
-                        }
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll phase2_link_info  destAddr == mySatAddress
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case phase2_link_info:{
-                        // Leader gathers information about links
-                        if(mySatAddress != leader){
-                            // I'm not leader
-                            leader = pk->getSrcAddr(); //only leader can send this type of message
-                            if (pk->getTopologyVarForUpdate())
-                                pk->deleteTopologyVar();
-                            delete pk;
-
-                            //we have leader so we can raise the flag(if we didn't already)
-                            phase1Flag = 0;
-
-                            // send info to leader
-                            send_link_info_to_leader();
-                        }
-                        else {
-                            // I'm the leader - save data
-                            for( int i = 0; i < 4; i++ )
-                                n_table[pk->getSrcAddr()][pk->data[i]] = pk->datadouble[i];
-
-                            linkdatacounter++;
-                            if(linkdatacounter == num_of_hosts-1 ){
-                                // gathered all data possible
-                                linkdatacounter = 0;
-                                schduleNewTopology();
-                            }
-                            if (pk->getTopologyVarForUpdate())
-                                pk->deleteTopologyVar();
-                            delete pk;
-                        }
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll   leader_to_roots destAddr == mySatAddress. IAM ROOT . send route_from root
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case leader_to_roots :{
-                        if(currTopoID != 0 && currTopoID != pk -> getTopologyID()){
-                            second_update = true;
-                        }
-
-                        if(second_update && currTopoID != 0 && !saveTempLinkFlag){
-                            saveTempLinkFlag = true;
-                            saveTempLinks();
-                        }
-
-                        copyTopology(topo, pk->getTopologyVarForUpdate(), "green");
-                        rootID = mySatAddress;
-                        currTopoID = pk -> getTopologyID();
-                        rootID_current_topo_ID = currTopoID;
-                        topocounter++;
-                        thisNode = topo -> getNodeFor(getParentModule());
-                        initRtable(topo, thisNode);
-                        if(second_update && currTopoID != 0 && saveTempLinkFlag && !keepAliveTempLinksFlag){
-                            keepAliveTempLinksFlag = true;
-                            keepAliveTempLinks();
-                        }
-                        rootCounter = pk->data[0];
-                        for( int i = 1; i < rootCounter + 1; i++ ){
-                            rootNodesArr[i-1]=pk->data[i];
-                        }
-                        for(int i=0;i<num_of_hosts;i++){
-                            if( i == mySatAddress )
-                                continue;
-
-                            RoutingTable::iterator iter = rtable.find(i);
-                            int rootGateIndex = (*iter).second;
-
-                            Packet *source_route = new Packet("path packet");
-                            source_route -> setPacketType(route_from_root);
-                            source_route -> setTopologyID(currTopoID);
-                            source_route -> setSrcAddr(mySatAddress);
-                            source_route -> setDestAddr(i);
-                            source_route -> setByteLength(1);
-                            source_route -> datadouble[0] = thisNode->getLinkOut(rootGateIndex)->getWeight();
-                            source_route -> datadouble[1] = -1;
-                            source_route -> data[0] = rootCounter;
-                            source_route -> data[1] = mySatAddress;
-                            pk -> setByteLength(1);
-                            Routing::LoadPacket(source_route, topo);
-                            for( int j = 2; j < num_of_hosts; j++ ){
-                                source_route->data[j] = -1;
-                                source_route->datadouble[j] = -1;
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll   leader_to_roots destAddr == mySatAddress. IAM ROOT . send route_from root
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case leader_to_roots :{
+                            if(currTopoID != 0 && currTopoID != pk -> getTopologyID()){
+                                second_update = true;
                             }
 
-                            send(source_route, "out",rootGateIndex);
-                        }
-                        //for all nodes create and send route_from_root;
-                        //rx : route_from_root save in table; activate app; send by table;
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        if (hasGUI())
-                            getParentModule()->bubble("LAST tree created!");
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll   route_from_root destAddr == mySatAddress. node decide to which root to communicate.
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case route_from_root :{
-                        if( currTopoID != 0 && currTopoID != pk -> getTopologyID() ){
-                             second_update = true;
-                        }
-                        if(  currTopoID != pk -> getTopologyID() ){
-                             topocounter++;
-                        }
-                        //New Topology. reset root info
-                        if( currTopoID != 0 && currTopoID != pk -> getTopologyID() ){
-                            //if i was a root in the old topology and now iam not.
-                            if(second_update)
-                                rootID = pk -> getTopologyID() == rootID_current_topo_ID ? rootID : -1;
-                            for(int i= 0;i<num_of_hosts;i++){
-                                rootNodesArr[i] = -1;
-                                path[i] = -1;
-                            }
-                            pathcounter = 0;
-                            pathID = -1;
-                            pathWeight = -1;
-
-                            if( second_update && currTopoID != 0 && !saveTempLinkFlag ){
+                            if(second_update && currTopoID != 0 && !saveTempLinkFlag){
                                 saveTempLinkFlag = true;
                                 saveTempLinks();
+                            }
+
+                            copyTopology(topo, pk->getTopologyVarForUpdate(), "green");
+                            rootID = mySatAddress;
+                            currTopoID = pk -> getTopologyID();
+                            rootID_current_topo_ID = currTopoID;
+                            topocounter++;
+                            thisNode = topo -> getNodeFor(getParentModule());
+                            initRtable(topo, thisNode);
+                            if(second_update && currTopoID != 0 && saveTempLinkFlag && !keepAliveTempLinksFlag){
+                                keepAliveTempLinksFlag = true;
+                                keepAliveTempLinks();
+                            }
+                            rootCounter = pk->data[0];
+                            for( int i = 1; i < rootCounter + 1; i++ ){
+                                rootNodesArr[i-1]=pk->data[i];
+                            }
+                            for(int i=0;i<num_of_hosts;i++){
+                                if( i == mySatAddress )
+                                    continue;
+
+                                RoutingTable::iterator iter = rtable.find(i);
+                                int rootGateIndex = (*iter).second;
+
+                                Packet *source_route = new Packet("path packet");
+                                source_route -> setPacketType(route_from_root);
+                                source_route -> setTopologyID(currTopoID);
+                                source_route -> setSrcAddr(mySatAddress);
+                                source_route -> setDestAddr(i);
+                                source_route -> setByteLength(1);
+                                source_route -> datadouble[0] = thisNode->getLinkOut(rootGateIndex)->getWeight();
+                                source_route -> datadouble[1] = -1;
+                                source_route -> data[0] = rootCounter;
+                                source_route -> data[1] = mySatAddress;
+                                pk -> setByteLength(1);
+                                Routing::LoadPacket(source_route, topo);
+                                for( int j = 2; j < num_of_hosts; j++ ){
+                                    source_route->data[j] = -1;
+                                    source_route->datadouble[j] = -1;
+                                }
+
+                                send(source_route, "out",rootGateIndex);
+                            }
+                            //for all nodes create and send route_from_root;
+                            //rx : route_from_root save in table; activate app; send by table;
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            if (hasGUI())
+                                getParentModule()->bubble("LAST tree created!");
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll   route_from_root destAddr == mySatAddress. node decide to which root to communicate.
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case route_from_root :{
+                            if( currTopoID != 0 && currTopoID != pk -> getTopologyID() ){
+                                 second_update = true;
+                            }
+                            if(  currTopoID != pk -> getTopologyID() ){
+                                 topocounter++;
+                            }
+                            //New Topology. reset root info
+                            if( currTopoID != 0 && currTopoID != pk -> getTopologyID() ){
+                                //if i was a root in the old topology and now iam not.
+                                if(second_update)
+                                    rootID = pk -> getTopologyID() == rootID_current_topo_ID ? rootID : -1;
+                                for(int i= 0;i<num_of_hosts;i++){
+                                    rootNodesArr[i] = -1;
+                                    path[i] = -1;
+                                }
+                                pathcounter = 0;
+                                pathID = -1;
+                                pathWeight = -1;
+
+                                if( second_update && currTopoID != 0 && !saveTempLinkFlag ){
+                                    saveTempLinkFlag = true;
+                                    saveTempLinks();
+                               }
+                            }
+
+                            currTopoID = pk -> getTopologyID();
+                            pathcounter ++;
+                            rootCounter = pk->data[0];
+                            //iam not root. so i need to learn about the path u
+                            double weightOfPath = 0;
+                            int j=0;
+                            while(pk->datadouble[j]!=-1){
+                               weightOfPath += pk->datadouble[j];
+                               j++;
+                            }
+
+                            j=0;
+                            //learn about routes
+                            while(rootNodesArr[j] != -1 && rootNodesArr[j] != pk->getSrcAddr())
+                                j++;
+                            rootNodesArr[j]=pk->getSrcAddr();
+                            setPathToRoot(pk);
+                            copyTopology(topo, pk->getTopologyVarForUpdate(), "green");
+                            setActiveLinks();
+                            if( second_update && currTopoID != 0 && !keepAliveTempLinksFlag  && saveTempLinkFlag  ){
+                                keepAliveTempLinksFlag = true;
+                                keepAliveTempLinks();
+                            }
+
+                            thisNode = topo->getNodeFor(getParentModule());
+                            initRtable(topo, thisNode);
+
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                           if (pathcounter == rootCounter && !app_is_on){
+                               app_is_on = true;
+                               if (getParentModule()->getSubmodule("app")->par("hasApp").boolValue()){
+                                   //start app
+                                   Packet *startSend = new Packet("initiate App");
+                                   startSend -> setPacketType(app_initial);
+                                   startSend -> setTopologyID(currTopoID);
+                                   //delayTime = 0;
+                                   send( startSend , "localOut" );
+                               }
+
+                               //start load prediction recording
+                               if(load_balance_link_prediction){
+                                    Packet *loadpm = new Packet("load prediction initial packet");
+                                    loadpm -> setPacketType(load_prediction);
+                                    loadpm -> setSrcAddr(mySatAddress);
+                                    loadpm -> setDestAddr(mySatAddress);
+                                    //we will start record in the 3rd cycle. when the system is stable
+                                    scheduleAt( simTime() + 3*changeRate, loadpm );
+                               }
                            }
-                        }
+                           //we learned about all the roots
+                           //how to get the total value of the path
 
-                        currTopoID = pk -> getTopologyID();
-                        pathcounter ++;
-                        rootCounter = pk->data[0];
-                        //iam not root. so i need to learn about the path u
-                        double weightOfPath = 0;
-                        int j=0;
-                        while(pk->datadouble[j]!=-1){
-                           weightOfPath += pk->datadouble[j];
-                           j++;
-                        }
-
-                        j=0;
-                        //learn about routes
-                        while(rootNodesArr[j] != -1 && rootNodesArr[j] != pk->getSrcAddr())
-                            j++;
-                        rootNodesArr[j]=pk->getSrcAddr();
-                        setPathToRoot(pk);
-                        copyTopology(topo, pk->getTopologyVarForUpdate(), "green");
-                        setActiveLinks();
-                        if( second_update && currTopoID != 0 && !keepAliveTempLinksFlag  && saveTempLinkFlag  ){
-                            keepAliveTempLinksFlag = true;
-                            keepAliveTempLinks();
-                        }
-
-                        thisNode = topo->getNodeFor(getParentModule());
-                        initRtable(topo, thisNode);
-
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                       if (pathcounter == rootCounter && !app_is_on){
-                           app_is_on = true;
-                           if (getParentModule()->getSubmodule("app")->par("hasApp").boolValue()){
-                               //start app
-                               Packet *startSend = new Packet("initiate App");
-                               startSend -> setPacketType(app_initial);
-                               startSend -> setTopologyID(currTopoID);
-                               //delayTime = 0;
-                               send( startSend , "localOut" );
+                           if (pathcounter == rootCounter){
+                               // After learning all paths, clear all neighbor terminal knowledge, and broadcast my terminal database
+                               neighborTerminalMap.clear();
+                               Packet *resendTerminals = new Packet("Re-send terminals packet (self message)");
+                               resendTerminals->setSrcAddr(mySatAddress);
+                               resendTerminals->setDestAddr(mySatAddress);
+                               resendTerminals->setPacketType(terminal_list_resend);
+                               scheduleAt(simTime(), resendTerminals);
                            }
 
-                           //start load prediction recording
-                           if(load_balance_link_prediction){
-                                Packet *loadpm = new Packet("load prediction initial packet");
-                                loadpm -> setPacketType(load_prediction);
-                                loadpm -> setSrcAddr(mySatAddress);
-                                loadpm -> setDestAddr(mySatAddress);
-                                //we will start record in the 3rd cycle. when the system is stable
-                                scheduleAt( simTime() + 3*changeRate, loadpm );
-                           }
-                       }
-                       //we learned about all the roots
-                       //how to get the total value of the path
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    // lll   message == mySatAddress.
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case message :{
+                            if (!getParentModule()->getSubmodule("app")->par("hasApp").boolValue()){
+                                //// New message code
+                                // Packet received is encapsulated
+                                TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(pk->decapsulate());
 
-                       if (pathcounter == rootCounter){
-                           // After learning all paths, clear all neighbor terminal knowledge, and broadcast my terminal database
-                           neighborTerminalMap.clear();
-                           Packet *resendTerminals = new Packet("Re-send terminals packet (self message)");
-                           resendTerminals->setSrcAddr(mySatAddress);
-                           resendTerminals->setDestAddr(mySatAddress);
-                           resendTerminals->setPacketType(terminal_list_resend);
-                           scheduleAt(simTime(), resendTerminals);
-                       }
+                                // Check if source exists in any table
+                                RoutingTable::iterator it = myTerminalMap.find(terMsg->getDestAddr());
 
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // lll   message == mySatAddress.
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case message :{
-                        if (!getParentModule()->getSubmodule("app")->par("hasApp").boolValue()){
-                            //// New message code
-                            // Packet received is encapsulated
-                            TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(pk->decapsulate());
+                                if (it != myTerminalMap.end()){
+                                    //// Found terminal in my map
 
-                            // Check if source exists in any table
-                            RoutingTable::iterator it = myTerminalMap.find(terMsg->getDestAddr());
+                                    EV << "Terminal " << terMsg->getDestAddr() << " is connected to me - satellite " << mySatAddress << endl;
 
-                            if (it != myTerminalMap.end()){
-                                //// Found terminal in my map
+                                    if (isDirectPortTaken[it->second] == 1){
+                                        // Main connection
+                                        sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
+                                    }
+                                    else{
+                                        // Sub connection
+                                        sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"subIn");
+                                    }
 
-                                EV << "Terminal " << terMsg->getDestAddr() << " is connected to me - satellite " << mySatAddress << endl;
-
-                                if (isDirectPortTaken[it->second] == 1){
-                                    // Main connection
-                                    sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"mainIn");
                                 }
                                 else{
-                                    // Sub connection
-                                    sendDirect(terMsg, getParentModule()->getParentModule()->getSubmodule("terminal", it->first),"subIn");
+                                    // Terminal is not in my map - check neighbors
+
+                                    it = neighborTerminalMap.find(terMsg->getDestAddr());
+                                    if (it != neighborTerminalMap.end()){
+                                        // Neighbor has that terminal connected - Re-encapsulate and sent
+
+                                        EV << "Terminal " << terMsg->getDestAddr() << " is connected to my neighbor - satellite " << it->second << endl;
+
+                                        int outGateIndex = rtable.find(it->second)->second;
+                                        Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
+                                        sendMessage(newPacket, outGateIndex, false);
+                                    }
+                                    else{
+                                        // No known neighbor has the terminal connected
+                                        EV << "Terminal " << terMsg->getDestAddr() << " is not around, dropping message" <<endl;
+                                        delete terMsg;
+                                        packetDropCounter++;
+                                    }
                                 }
 
+                                // Send ACK if the message is from other module
+                                if (!pk->isSelfMessage())
+                                    sendAck(pk);
+
+                                delete pk;
                             }
                             else{
-                                // Terminal is not in my map - check neighbors
-
-                                it = neighborTerminalMap.find(terMsg->getDestAddr());
-                                if (it != neighborTerminalMap.end()){
-                                    // Neighbor has that terminal connected - Re-encapsulate and sent
-
-                                    EV << "Terminal " << terMsg->getDestAddr() << " is connected to my neighbor - satellite " << it->second << endl;
-
-                                    int outGateIndex = rtable.find(it->second)->second;
-                                    Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
-                                    sendMessage(newPacket, outGateIndex);
-                                }
-                                else{
-                                    // No known neighbor has the terminal connected
-                                    EV << "Terminal " << terMsg->getDestAddr() << " is not around, dropping message" <<endl;
-                                    delete terMsg;
-                                    packetDropCounter++;
-                                }
+                                //// Legacy code
+                                //recive message. send to app
+                                send( (cMessage*)pk , "localOut" );
                             }
-
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    // lll   load_prediction message == mySatAddress.
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case load_prediction :{
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
                             delete pk;
-                        }
-                        else{
-                            //// Legacy code
-                            //recive message. send to app
-                            send( (cMessage*)pk , "localOut" );
-                        }
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // lll   load_prediction message == mySatAddress.
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case load_prediction :{
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        updateLoadHistory();
-                        Packet *loadpm = new Packet("load prediction initial packet");
-                        loadpm -> setPacketType(load_prediction);
-                        loadpm -> setSrcAddr(mySatAddress);
-                        loadpm -> setDestAddr(mySatAddress);
-                        loadpm -> setHopCount(0);
-                        scheduleAt( simTime() + 0.2, loadpm );
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // lll   load_prediction_update message == mySatAddress.
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case load_prediction_update :{
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        LinkLoadPrediction();
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // lll  update_topology self message for leader
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case update_topology:{
-                        fiftLink = (topocounter % 2 == 1) ? true : false;
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        double wgttemp;
-                        reset_ntable();
+                            updateLoadHistory();
+                            Packet *loadpm = new Packet("load prediction initial packet");
+                            loadpm -> setPacketType(load_prediction);
+                            loadpm -> setSrcAddr(mySatAddress);
+                            loadpm -> setDestAddr(mySatAddress);
+                            loadpm -> setHopCount(0);
+                            scheduleAt( simTime() + 0.2, loadpm );
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    // lll   load_prediction_update message == mySatAddress.
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case load_prediction_update :{
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            LinkLoadPrediction();
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    // lll  update_topology self message for leader
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case update_topology:{
+                            fiftLink = (topocounter % 2 == 1) ? true : false;
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            double wgttemp;
+                            reset_ntable();
 
-                        for(int i=0;i<num_of_hosts;i++){
-                            cTopology::Node * currNode = topo->getNode(i);
-                            //negiboors of node i
-                            int tempNeighbor[6];
-                            int *arr = getNeighborsArr(i,tempNeighbor);
-                            int Neighbor;
-                            //learn and update wgt's
-                            for(int j=0;j<topo->getNode(i)->getNumInLinks();j++){
-                                double wgt,queuesize;
-                                Neighbor = tempNeighbor[getNeighborIndex(j)];
-                                if(fiftLink){
-                                    queuesize = check_and_cast<L2Queue*>(topo->getNode(i)->getModule()->getSubmodule("queue", j)) -> getQueueSize();
-                                    wgt = queuesize / frameCapacity * 100;//(datarate/12000) * 100;
-                                    n_table[i][Neighbor] = wgt;
-                                    wgt = (n_table[i][Neighbor] > 100) ? 100 :  n_table[i][Neighbor];
-                                    n_table[i][Neighbor] = wgt;
-                                }
-                                else{
-                                    //the first 4(0-3)links stay connected at all times
-                                    if(j<3){
+                            for(int i=0;i<num_of_hosts;i++){
+                                cTopology::Node * currNode = topo->getNode(i);
+                                //negiboors of node i
+                                int tempNeighbor[6];
+                                int *arr = getNeighborsArr(i,tempNeighbor);
+                                int Neighbor;
+                                //learn and update wgt's
+                                for(int j=0;j<topo->getNode(i)->getNumInLinks();j++){
+                                    double wgt,queuesize;
+                                    Neighbor = tempNeighbor[getNeighborIndex(j)];
+                                    if(fiftLink){
                                         queuesize = check_and_cast<L2Queue*>(topo->getNode(i)->getModule()->getSubmodule("queue", j)) -> getQueueSize();
                                         wgt = queuesize / frameCapacity * 100;//(datarate/12000) * 100;
                                         n_table[i][Neighbor] = wgt;
-                                        wgt = n_table[i][tempNeighbor[getNeighborIndex(j)]] > 100 ? 100 :  n_table[i][tempNeighbor[getNeighborIndex(j)]] ;
+                                        wgt = (n_table[i][Neighbor] > 100) ? 100 :  n_table[i][Neighbor];
                                         n_table[i][Neighbor] = wgt;
                                     }
-                                    //the 5th and the 6th connection is turend off by setting value of inf
                                     else{
-                                        n_table[i][Neighbor] = INT_MAX;
+                                        //the first 4(0-3)links stay connected at all times
+                                        if(j<3){
+                                            queuesize = check_and_cast<L2Queue*>(topo->getNode(i)->getModule()->getSubmodule("queue", j)) -> getQueueSize();
+                                            wgt = queuesize / frameCapacity * 100;//(datarate/12000) * 100;
+                                            n_table[i][Neighbor] = wgt;
+                                            wgt = n_table[i][tempNeighbor[getNeighborIndex(j)]] > 100 ? 100 :  n_table[i][tempNeighbor[getNeighborIndex(j)]] ;
+                                            n_table[i][Neighbor] = wgt;
+                                        }
+                                        //the 5th and the 6th connection is turend off by setting value of inf
+                                        else{
+                                            n_table[i][Neighbor] = INT_MAX;
+                                        }
                                     }
-                                }
 
-                                //will add 1 to avoid wgt of 0
-                                wgttemp =  n_table[i][Neighbor] + 1;
+                                    //will add 1 to avoid wgt of 0
+                                    wgttemp =  n_table[i][Neighbor] + 1;
 
-                                currNode->getLinkIn(j)->setWeight(wgttemp);
-                                currNode->getLinkOut(j)->setWeight(wgttemp);
-                            }
-                        }
-                        schduleNewTopology();
-                    }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // lll  turn_off_link self message to disable temp links (after topo update)
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    case turn_off_link:{
-                        for(int i = 0; i<MAXAMOUNTOFLINKS;i++)
-                            if( tempActiveLinks[i] != -1 && active_links_array[i] == -1 )
-                                topo->getNode(mySatAddress)->getLinkIn(tempActiveLinks[i])->disable();
-                        for(int i = 0; i<MAXAMOUNTOFLINKS;i++)
-                            if( tempActiveLinks[i] != -1 && active_links_array[i] == -1 )
-                                topo->getNode(mySatAddress)->getLinkOut(tempActiveLinks[i])->disable();
-                        saveTempLinkFlag = false;
-                        keepAliveTempLinksFlag = false;
-                        delete pk;
-                     }break;
-                    case terminal_list_resend:{
-                        broadcastTerminalStatus(-1, -1, true);
-                        delete pk;
-                        break;
-                    }
-                } // End of switch statement
-            } // End of destination if
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // lll   destAddr != mySatAddress
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        else{
-            switch(pk->getPacketType()){
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll  message destAddr != mySatAddress
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                case message :{
-                    if(BASELINE_MODE){
-                        RoutingTable::iterator it = rtable.find(pk->getDestAddr());
-                        int outGateIndex = (*it).second;
-                        send(pk,"out",outGateIndex);
-                        break;
-                    }
-
-                    //load_balance
-                    if(pk -> getHopCount() > 20){
-                        packetDropCounterFromHops++;
-
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        EV<<endl<<endl<<"message we DROP!@#!@"<<endl<<endl;
-                    }
-                    else
-                        if( pk -> datadouble[0] == hot_potato_lable){
-                            RoutingTable::iterator it = rtable.find(pk->getDestAddr());
-                            int outGateIndex = (*it).second;
-                            sendMessage(pk,outGateIndex);
-                        }
-                        else
-                            if( pk->getSrcAddr() == mySatAddress && pk->datadouble[0] == -2 ){
-                                int i = 0;
-                                while( path[i] != -1 ){
-                                    pk -> data[i] = path[i];
-                                    i++;
-                                }
-
-                                if( rootID != -1 )
-                                   pk -> datadouble[0] = -3;
-
-                                i = 0;
-                                while(pk->data[i] != -1)
-                                    i++;
-                                i--;
-
-                                RoutingTable::iterator it = rtable.find(pk->data[i]);
-                                int outGateIndex = (*it).second;
-                                sendMessage(pk,outGateIndex);
-                            }
-                            //message on the way to root
-                            //message on the way to dst
-                            else{
-                                //shortest path from root to dest
-                                int rootID_temp;
-                                rootID_temp = pk->data[0];
-                                if(mySatAddress == rootID_temp)
-                                    pk->datadouble[0] = -3;
-
-                                //message on the way to dst
-                                if( rootID_temp == mySatAddress  || pk->datadouble[0] == -3 ){
-                                    if( hasGUI() && rootID == mySatAddress )
-                                        this->getParentModule()->bubble("root received message");
-                                    RoutingTable::iterator it = rtable.find( pk->getDestAddr() );
-                                    int outGateIndex = (*it).second;
-                                   sendMessage(pk,outGateIndex);
-                                }
-                                //message on the way to root
-                                else{
-                                    int i = 0;
-                                    while(pk->data[i] != mySatAddress && i < num_of_hosts)
-                                        i++;
-                                    i--;
-                                    RoutingTable::iterator it = rtable.find(pk->data[i]);
-                                    int outGateIndex = (*it).second;
-                                    sendMessage(pk,outGateIndex);
+                                    currNode->getLinkIn(j)->setWeight(wgttemp);
+                                    currNode->getLinkOut(j)->setWeight(wgttemp);
                                 }
                             }
-                }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll  hot_potato destAddr != mySatAddress hot potato case (load balance).
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                case hot_potato :{
-                    pk -> setSrcAddr(mySatAddress);
-                    pk -> setDestAddr(pk->getDestAddr());
-                    pk -> setPacketType(message);
-                    pk -> setBitLength((int64_t) 12000);
+                            schduleNewTopology();
+                        }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    // lll  turn_off_link self message to disable temp links (after topo update)
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        case turn_off_link:{
+                            for(int i = 0; i<MAXAMOUNTOFLINKS;i++)
+                                if( tempActiveLinks[i] != -1 && active_links_array[i] == -1 )
+                                    topo->getNode(mySatAddress)->getLinkIn(tempActiveLinks[i])->disable();
+                            for(int i = 0; i<MAXAMOUNTOFLINKS;i++)
+                                if( tempActiveLinks[i] != -1 && active_links_array[i] == -1 )
+                                    topo->getNode(mySatAddress)->getLinkOut(tempActiveLinks[i])->disable();
+                            saveTempLinkFlag = false;
+                            keepAliveTempLinksFlag = false;
+                            delete pk;
+                         }break;
 
-                    int index=0;
-                    while(index<num_of_hosts){
-                        pk -> data[index]=-1;
-                        pk ->datadouble[index] = -1;
-                        index++;
-                    }
-                    int i = 0;
-
-                    while( path[i] != -1 ){
-                        pk -> data[i] = path[i];
-                        i++;
-                    }
-
-                    i = 0;
-                    while(pk->data[i] != -1)
-                        i++;
-                    i--;
-
-                    int outGateIndex;
-                    pk -> datadouble[0] = hot_potato_lable;
-                    RoutingTable::iterator it = rtable.find(pk->getDestAddr());
-                    outGateIndex = (*it).second;
-                    sendMessage(pk,outGateIndex);
-                }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll  route_from_root destAddr != mySatAddress need to update route for destination.
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                case route_from_root:{
-                    thisNode = topo->getNodeFor(getParentModule());
-                    initRtable(topo, thisNode);
-                    RoutingTable::iterator it = rtable.find(destAddr);
-                    int outGateIndex = (*it).second;
-
-                    int j=1;
-                    while(pk->data[j]!=-1){
-                        if(pk->data[j] == mySatAddress){
-                            if(topocounter){
-                                int aaaaa=1;
-                                aaaaa++;
-                            }
+                        // NOTE: NOT legacy
+                        case terminal_list_resend:{
+                            broadcastTerminalStatus(-1, -1, true);
+                            delete pk;
                             break;
                         }
-                        j++;
-                    }
+                    } // End of switch statement
+                } // End of destination if
 
-                    if(pk->data[j] == mySatAddress){
-                        sendDelayed(pk,delayTime , "out",outGateIndex);
-                    }
-                    else{
-                        pk->data[j]=mySatAddress;
-                        j=1;
-                        while(pk->datadouble[j]!=-1)
-                            j++;
-                        pk->datadouble[j]=thisNode->getLinkOut(outGateIndex)->getWeight();
-                        delayTime = 0;//exponential(0.01);
-                        sendDelayed(pk,delayTime , "out",outGateIndex);
-                    }
-                }break;
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll  leader_to_roots destAddr != mySatAddress
+            // lll   destAddr != mySatAddress
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                case  leader_to_roots :{
-                    rootCounter = pk->data[0];
-                    copyTopology(this->topo, pk->getTopologyVarForUpdate(), "green");
-                    setActiveLinks();
-                    currTopoID = pk->getTopologyID();
-                    thisNode = topo->getNodeFor(getParentModule());
-                    initRtable(topo, thisNode);
-                    RoutingTable::iterator it = rtable.find(destAddr);
-                    int outGateIndex = (*it).second;
-                    delayTime = 0;//exponential(0.01);
-                    send(pk,"out",outGateIndex);
-                }break;
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // George: terminal_list is sent with invalid address (-1 = Broadcast) - always goes here
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                case terminal_list:{
-                    //// A neighbor satellite broadcasted a change in its terminals
-                    if (pk->getHopCount() == maxHopCountForTerminalList){
-                        // Max hops reached - drop packet
-                        delete pk;
-                        EV << "Satellite " << mySatAddress << " dropped terminal_list packet (too many hops)" << endl;
-                        return;
-                    }
-
-                    //// Read data to neighbor map
-                    int loopCnt = pk->terminalListLength;
-                    for(int i = 0; i < loopCnt; i++){
-                        if (pk->terminalConnectionStatus[i]){
-                            // Terminal has connected to a neighbor - add terminal to neighbor map
-
-                            neighborTerminalMap[pk->terminalList[i]] = pk->getSrcAddr();
-                            EV << "Satellite " << mySatAddress << " added satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
+            else{
+                switch(pk->getPacketType()){
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll  message destAddr != mySatAddress
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    case message :{
+                        if(BASELINE_MODE){
+                            RoutingTable::iterator it = rtable.find(pk->getDestAddr());
+                            int outGateIndex = (*it).second;
+                            send(pk,"out",outGateIndex);
+                            break;
                         }
-                        else {
-                            // Terminal has disconnected from a neighbor - remove terminal from neighbor map
 
-                            // Check if source exists in table and delete it
-                            RoutingTable::iterator it;
-                            it = neighborTerminalMap.find(pk->terminalList[i]);
-                            if (it != neighborTerminalMap.end()){
-                                neighborTerminalMap.erase(it);
-                                EV << "Satellite " << mySatAddress << " deleted satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
-                            }
+                        //load_balance
+                        if(pk -> getHopCount() > 20){
+                            packetDropCounterFromHops++;
+
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            EV<<endl<<endl<<"message we DROP!@#!@"<<endl<<endl;
                         }
-                    }
-
-                    // Get a list of all active links
-                    std::list<int> lst;
-                    for(int i = 0; i < rtable.size(); i++){
-                        lst.push_back(rtable[i]);
-                    }
-                    lst.sort(); // Necessary for lst.unique() to work properly
-                    lst.unique();
-
-                    // Broadcast terminal_list to all active links
-                    std::list<int>::iterator last = --lst.end(); // Last element in list
-
-                    for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
-                        if (it != last)
-                            sendMessage(pk->dup(),*it);
                         else
-                            sendMessage(pk, *it);
-                    }
-
-                    break;
-                }
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                    // lll  default: destAddr != mySatAddress
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                default :{
-                    RoutingTable::iterator it = rtable.find(destAddr);
-                    if (it == rtable.end()){
-                        if (DEBUG){
-                            EV << "address " << destAddr << " unreachable, discarding packet " << pk->getName() << endl;
-                        }
-
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        return;
-                    }
-                    else if (currTopoID == pk->getTopologyID()){
-                        for( int i=0;i<thisNode->getNumInLinks();i++){
-                            if( thisNode->getLinkIn(i)->getLocalGateId() ==pk->getArrivalGateId()){
-                                linkCounter[i] += 1;
+                            if( pk -> datadouble[0] == hot_potato_lable){
+                                RoutingTable::iterator it = rtable.find(pk->getDestAddr());
+                                int outGateIndex = (*it).second;
+                                sendMessage(pk,outGateIndex, !pk->isSelfMessage());
                             }
+                            else
+                                if( pk->getSrcAddr() == mySatAddress && pk->datadouble[0] == -2 ){
+                                    int i = 0;
+                                    while( path[i] != -1 ){
+                                        pk -> data[i] = path[i];
+                                        i++;
+                                    }
+
+                                    if( rootID != -1 )
+                                       pk -> datadouble[0] = -3;
+
+                                    i = 0;
+                                    while(pk->data[i] != -1)
+                                        i++;
+                                    i--;
+
+                                    RoutingTable::iterator it = rtable.find(pk->data[i]);
+                                    int outGateIndex = (*it).second;
+                                    sendMessage(pk,outGateIndex,!pk->isSelfMessage());
+                                }
+                                //message on the way to root
+                                //message on the way to dst
+                                else{
+                                    //shortest path from root to dest
+                                    int rootID_temp;
+                                    rootID_temp = pk->data[0];
+                                    if(mySatAddress == rootID_temp)
+                                        pk->datadouble[0] = -3;
+
+                                    //message on the way to dst
+                                    if( rootID_temp == mySatAddress  || pk->datadouble[0] == -3 ){
+                                        if( hasGUI() && rootID == mySatAddress )
+                                            this->getParentModule()->bubble("root received message");
+                                        RoutingTable::iterator it = rtable.find( pk->getDestAddr() );
+                                        int outGateIndex = (*it).second;
+                                       sendMessage(pk,outGateIndex,!pk->isSelfMessage());
+                                    }
+                                    //message on the way to root
+                                    else{
+                                        int i = 0;
+                                        while(pk->data[i] != mySatAddress && i < num_of_hosts)
+                                            i++;
+                                        i--;
+                                        RoutingTable::iterator it = rtable.find(pk->data[i]);
+                                        int outGateIndex = (*it).second;
+                                        sendMessage(pk,outGateIndex,!pk->isSelfMessage());
+                                    }
+                                }
+                    }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll  hot_potato destAddr != mySatAddress hot potato case (load balance).
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    case hot_potato :{
+                        pk -> setSrcAddr(mySatAddress);
+                        pk -> setDestAddr(pk->getDestAddr());
+                        pk -> setPacketType(message);
+                        pk -> setBitLength((int64_t) 12000);
+
+                        int index=0;
+                        while(index<num_of_hosts){
+                            pk -> data[index]=-1;
+                            pk ->datadouble[index] = -1;
+                            index++;
                         }
+                        int i = 0;
+
+                        while( path[i] != -1 ){
+                            pk -> data[i] = path[i];
+                            i++;
+                        }
+
+                        i = 0;
+                        while(pk->data[i] != -1)
+                            i++;
+                        i--;
+
+                        int outGateIndex;
+                        pk -> datadouble[0] = hot_potato_lable;
+                        RoutingTable::iterator it = rtable.find(pk->getDestAddr());
+                        outGateIndex = (*it).second;
+                        sendMessage(pk,outGateIndex);   // XXX: Hot potato is never a self message
+                    }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll  route_from_root destAddr != mySatAddress need to update route for destination.
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    case route_from_root:{
+                        thisNode = topo->getNodeFor(getParentModule());
+                        initRtable(topo, thisNode);
+                        RoutingTable::iterator it = rtable.find(destAddr);
                         int outGateIndex = (*it).second;
 
-                        // Add edge weight
-                        emit(outputIfSignal, outGateIndex);
-                       // send(pk, "out", outGateIndex);
-                        delayTime = 0;//exponential(0.01);
-                        sendDelayed(pk,delayTime,"out",outGateIndex);
-                        return;
-                    }
-                    else{
-                        emit(dropSignal, (long)pk->getByteLength());
-                        if (pk->getTopologyVarForUpdate())
-                            pk->deleteTopologyVar();
-                        delete pk;
-                        return;
-                     }
-                }break;
-            }//end switch case incoming message
-        } // End of else
-    }
-    else{
-        //// Kind = 1 -> new code for terminal support
-        //positionAtGrid = false;
-        if (!positionAtGrid){
-            // In order to position satellite at grid's position we need to create XML files for every node
-            cDisplayString *myDispStr = &getParentModule()->getSubmodule("grid")->getThisPtr()->getDisplayString();
-            double posX, posY;
-            std::string dispStr(myDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
-            std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
-
-            dispStr = dispStr.substr(pos);                          // Cut string until the first number
-            posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
-                                                                    //      location AFTER the first double
-
-            dispStr = dispStr.substr(pos);                          // Remove the X position from string
-
-            pos = dispStr.find_first_of("0123456789");              // find position of the first number
-            dispStr = dispStr.substr(pos);                          // Cut string until the first number
-            posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
-
-            // Print position to copy to [coordinates.txt] file, and run [buildXMLFiles.py]
-            std::cout << "Satellite " << mySatAddress << " pos: (" << posX << ", " << posY << ")" << endl;
-            if (mySatAddress == NUMOFNODES-1){
-                endSimulation();
-            }
-            return;
-        }
-
-        TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(msg);
-        switch (terMsg->getPacketType()){
-            case terminal_message:{
-                //// Received message from a terminal
-
-                /* TODO: Look up in tables to find if the destination is around.
-                 *          if in my table, send it the raw message
-                 *          if in neighbors table, send it to said neighbor
-                 *          if not in both - Satellite prediction
-                 *
-                 *                  Questions:
-                                        1. If target satellite is me/direct neighbor - do I keep the message (schedule at)?
-                                        2. What happens when disconnect comes in the middle of transmission?
-                                                Barrier?
-                                                Should we send the packet to the last neighbor that sent terminal_connect with
-                                                the appropriate address? (Prevent this from happening)
-                 *
-                 *
-                 */
-
-                Packet* pk = createPacketForDestinationSatellite(terMsg);
-                if (pk){
-                    // Packet created successfully
-                    scheduleAt(simTime(), pk);
-                }
-                else{
-                    // No satellite will be connected to target terminal
-                    delete terMsg;
-                    packetDropCounter++;
-                }
-                break;
-            }
-            case terminal_connect:{
-                //// Terminal wishes to connect
-                /* NOTES: 1. In this case the destination address is ignored
-                 *        2. The source must be the correct address (for terminal table).
-                 */
-
-                // Find if there is an open position in array and prepare target's gate name
-                int assignedIndex = -1, mode = -1;
-                std::string targetGate;
-                for(int i = 0; i < gateSize("terminalIn"); i++)
-                    if (!isDirectPortTaken[i]){
-                        assignedIndex = i;      // Index in array
-
-                        mode = terMsg->getMode();
-                        switch (mode){
-                            case main:{
-                                isDirectPortTaken[i] = 1;   // Raise a flag to know that this index is taken
-                                targetGate = "mainIn";      // Find which gate to send replies/messages
+                        int j=1;
+                        while(pk->data[j]!=-1){
+                            if(pk->data[j] == mySatAddress){
+                                if(topocounter){
+                                    int aaaaa=1;
+                                    aaaaa++;
+                                }
                                 break;
                             }
-                            case sub:{
-                                isDirectPortTaken[i] = 2;
-                                targetGate = "subIn";
-                                break;
-                            }
+                            j++;
                         }
 
-                        myTerminalMap[terMsg->getSrcAddr()] = assignedIndex;    // Update my table
+                        if(pk->data[j] == mySatAddress){
+                            sendDelayed(pk,delayTime , "out",outGateIndex);
+                        }
+                        else{
+                            pk->data[j]=mySatAddress;
+                            j=1;
+                            while(pk->datadouble[j]!=-1)
+                                j++;
+                            pk->datadouble[j]=thisNode->getLinkOut(outGateIndex)->getWeight();
+                            delayTime = 0;//exponential(0.01);
+                            sendDelayed(pk,delayTime , "out",outGateIndex);
+                        }
+                    }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll  leader_to_roots destAddr != mySatAddress
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    case  leader_to_roots :{
+                        rootCounter = pk->data[0];
+                        copyTopology(this->topo, pk->getTopologyVarForUpdate(), "green");
+                        setActiveLinks();
+                        currTopoID = pk->getTopologyID();
+                        thisNode = topo->getNodeFor(getParentModule());
+                        initRtable(topo, thisNode);
+                        RoutingTable::iterator it = rtable.find(destAddr);
+                        int outGateIndex = (*it).second;
+                        delayTime = 0;//exponential(0.01);
+                        send(pk,"out",outGateIndex);
+                    }break;
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // George: terminal_list is sent with invalid address (-1 = Broadcast) - always goes here
+                        // NOTE: NOT legacy
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    case terminal_list:{
+                        //// A neighbor satellite broadcasted a change in its terminals
+                        if (pk->getHopCount() == maxHopCountForTerminalList + 1){
+                            // Max hops reached - drop packet
+                            delete pk;
+                            EV << "Satellite " << mySatAddress << " dropped terminal_list packet (too many hops)" << endl;
+                            return;
+                        }
+
+                        if (mySatAddress != pk->getSrcAddr()){
+                            //// Read data to neighbor map if the source is not me
+                            int loopCnt = pk->terminalListLength;
+                            for(int i = 0; i < loopCnt; i++){
+                                if (pk->terminalConnectionStatus[i]){
+                                    // Terminal has connected to a neighbor - add terminal to neighbor map
+
+                                    neighborTerminalMap[pk->terminalList[i]] = pk->getSrcAddr();
+                                    EV << "Satellite " << mySatAddress << " added satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
+                                }
+                                else {
+                                    // Terminal has disconnected from a neighbor - remove terminal from neighbor map
+
+                                    // Check if source exists in table and delete it
+                                    RoutingTable::iterator it;
+                                    it = neighborTerminalMap.find(pk->terminalList[i]);
+                                    if (it != neighborTerminalMap.end()){
+                                        neighborTerminalMap.erase(it);
+                                        EV << "Satellite " << mySatAddress << " deleted satellite " << pk->getSrcAddr() << "'s terminal " << pk->terminalList[i] << endl;
+                                    }
+                                }
+                            }
+
+                            // Get a list of all active links
+                            std::list<int> lst;
+                            for(int i = 0; i < rtable.size(); i++){
+                                lst.push_back(rtable[i]);
+                            }
+                            lst.sort(); // Necessary for lst.unique() to work properly
+                            lst.unique();
+
+                            // Broadcast terminal_list to all active links
+                            std::list<int>::iterator last = --lst.end(); // Last element in list
+
+                            for(std::list<int>::iterator it = lst.begin(); it != lst.end(); it++){
+                                if (it != last)
+                                    sendMessage(pk->dup(), *it, false);
+                                else
+                                    sendMessage(pk, *it, false);
+                            }
+                        }
+                        else{
+                            //// I'm source of the broadcast
+                            delete pk;
+                        }
+
                         break;
                     }
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // lll  default: destAddr != mySatAddress
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    default :{
+                        RoutingTable::iterator it = rtable.find(destAddr);
+                        if (it == rtable.end()){
+                            if (DEBUG){
+                                EV << "address " << destAddr << " unreachable, discarding packet " << pk->getName() << endl;
+                            }
 
-                // Send reply
-                /* NOTES: 1. If assignedIndex==-1 the terminal would know it had no open position.
-                 *        2. Byte length is 0 - This message is auxiliary for simulation, not a real message
-                 *        3. Duration of transmission is also 0, for above reason
-                 * */
-                TerminalMsg * ansMsg = new TerminalMsg("Satellite reply - index for terminal", terminal);
-                ansMsg->setSrcAddr(mySatAddress);
-                ansMsg->setDestAddr(terMsg->getSrcAddr());
-                ansMsg->setPacketType(terminal_index_assign);
-                ansMsg->setReplyType(assignedIndex);
-                ansMsg->setMode(mode);
-                ansMsg->setByteLength(0);
-                sendDirect(ansMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            return;
+                        }
+                        else if (currTopoID == pk->getTopologyID()){
+                            for( int i=0;i<thisNode->getNumInLinks();i++){
+                                if( thisNode->getLinkIn(i)->getLocalGateId() ==pk->getArrivalGateId()){
+                                    linkCounter[i] += 1;
+                                }
+                            }
+                            int outGateIndex = (*it).second;
 
-                // Notify neighbors
-                broadcastTerminalStatus(terMsg->getSrcAddr(), connected);
+                            // Add edge weight
+                            emit(outputIfSignal, outGateIndex);
+                           // send(pk, "out", outGateIndex);
+                            delayTime = 0;//exponential(0.01);
+                            sendDelayed(pk,delayTime,"out",outGateIndex);
+                            return;
+                        }
+                        else{
+                            emit(dropSignal, (long)pk->getByteLength());
+                            if (pk->getTopologyVarForUpdate())
+                                pk->deleteTopologyVar();
+                            delete pk;
+                            return;
+                         }
+                    }break;
+                }//end switch case incoming message
+            } // End of else
 
-                delete terMsg;
-                break;
-            }
-            case terminal_disconnect:{
-                //// Terminal wishes to disconnect
 
-                // Check if source exists in table and delete it
-                RoutingTable::iterator it;
-                it = myTerminalMap.find(terMsg->getSrcAddr());
-                if (it != myTerminalMap.end()){
-                    isDirectPortTaken[(*it).second] = 0;        // Release port
-                    myTerminalMap.erase(it);
+            break;  // End of legacy code
+        }
+        case terminal:{
+
+            //// Kind = 1 -> new code for terminal support. [TerminalMsg] messages go here
+            //positionAtGrid = false;
+            if (!positionAtGrid){
+                // In order to position satellite at grid's position we need to create XML files for every node
+                cDisplayString *myDispStr = &getParentModule()->getSubmodule("grid")->getThisPtr()->getDisplayString();
+                double posX, posY;
+                std::string dispStr(myDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
+                std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
+
+                dispStr = dispStr.substr(pos);                          // Cut string until the first number
+                posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
+                                                                        //      location AFTER the first double
+
+                dispStr = dispStr.substr(pos);                          // Remove the X position from string
+
+                pos = dispStr.find_first_of("0123456789");              // find position of the first number
+                dispStr = dispStr.substr(pos);                          // Cut string until the first number
+                posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
+
+                // Print position to copy to [coordinates.txt] file, and run [buildXMLFiles.py]
+                std::cout << "Satellite " << mySatAddress << " pos: (" << posX << ", " << posY << ")" << endl;
+                if (mySatAddress == NUMOFNODES-1){
+                    endSimulation();
                 }
-
-                EV << "Satellite " << mySatAddress << " has forgotten terminal " << terMsg->getSrcAddr() << " completely" << endl;
-
-                // Notify neighbors
-                broadcastTerminalStatus(terMsg->getSrcAddr(), disconnected);
-
-                delete terMsg;
-                break;
+                return;
             }
-            case terminal_index_assign:{
-                //// Error: this is a message from a satellite to a terminal
-                delete msg;
-                std::cout << "Error! A satellite received handshake packet that needs to be sent to a terminal!" << endl;
-                endSimulation();
-                break;
+
+            TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(msg);
+            switch (terMsg->getPacketType()){
+                case terminal_message:{
+                    //// Received message from a terminal
+
+                    /* TODO: Look up in tables to find if the destination is around.
+                     *          if in my table, send it the raw message
+                     *          if in neighbors table, send it to said neighbor
+                     *          if not in both - Satellite prediction
+                     *
+                     *                  Questions:
+                                            1. If target satellite is me/direct neighbor - do I keep the message (schedule at)?
+                                            2. What happens when disconnect comes in the middle of transmission?
+                                                    Barrier?
+                                                    Should we send the packet to the last neighbor that sent terminal_connect with
+                                                    the appropriate address? (Prevent this from happening)
+                     *
+                     *
+                     */
+
+                    Packet* pk = createPacketForDestinationSatellite(terMsg);
+                    if (pk){
+                        // Packet created successfully
+                        scheduleAt(simTime(), pk);
+                    }
+                    else{
+                        // No satellite will be connected to target terminal
+                        delete terMsg;
+                        packetDropCounter++;
+                    }
+                    break;
+                }
+                case terminal_connect:{
+                    //// Terminal wishes to connect
+                    /* NOTES: 1. In this case the destination address is ignored
+                     *        2. The source must be the correct address (for terminal table).
+                     */
+
+                    // Find if there is an open position in array and prepare target's gate name
+                    int assignedIndex = -1, mode = -1;
+                    std::string targetGate;
+                    for(int i = 0; i < gateSize("terminalIn"); i++)
+                        if (!isDirectPortTaken[i]){
+                            assignedIndex = i;      // Index in array
+
+                            mode = terMsg->getMode();
+                            switch (mode){
+                                case main:{
+                                    isDirectPortTaken[i] = 1;   // Raise a flag to know that this index is taken
+                                    targetGate = "mainIn";      // Find which gate to send replies/messages
+                                    break;
+                                }
+                                case sub:{
+                                    isDirectPortTaken[i] = 2;
+                                    targetGate = "subIn";
+                                    break;
+                                }
+                            }
+
+                            myTerminalMap[terMsg->getSrcAddr()] = assignedIndex;    // Update my table
+                            break;
+                        }
+
+                    // Send reply
+                    /* NOTES: 1. If assignedIndex==-1 the terminal would know it had no open position.
+                     *        2. Byte length is 0 - This message is auxiliary for simulation, not a real message
+                     *        3. Duration of transmission is also 0, for above reason
+                     * */
+                    TerminalMsg * ansMsg = new TerminalMsg("Satellite reply - index for terminal", terminal);
+                    ansMsg->setSrcAddr(mySatAddress);
+                    ansMsg->setDestAddr(terMsg->getSrcAddr());
+                    ansMsg->setPacketType(terminal_index_assign);
+                    ansMsg->setReplyType(assignedIndex);
+                    ansMsg->setMode(mode);
+                    ansMsg->setByteLength(0);
+                    sendDirect(ansMsg, 0, 0,getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr()),targetGate.c_str());
+
+                    // Notify neighbors
+                    broadcastTerminalStatus(terMsg->getSrcAddr(), connected);
+
+                    delete terMsg;
+                    break;
+                }
+                case terminal_disconnect:{
+                    //// Terminal wishes to disconnect
+
+                    // Check if source exists in table and delete it
+                    RoutingTable::iterator it;
+                    it = myTerminalMap.find(terMsg->getSrcAddr());
+                    if (it != myTerminalMap.end()){
+                        isDirectPortTaken[(*it).second] = 0;        // Release port
+                        myTerminalMap.erase(it);
+                    }
+
+                    EV << "Satellite " << mySatAddress << " has forgotten terminal " << terMsg->getSrcAddr() << " completely" << endl;
+
+                    // Notify neighbors
+                    broadcastTerminalStatus(terMsg->getSrcAddr(), disconnected);
+
+                    delete terMsg;
+                    break;
+                }
+                case terminal_index_assign:{
+                    //// Error: this is a message from a satellite to a terminal
+                    delete msg;
+                    std::cout << "Error! A satellite received handshake packet that needs to be sent to a terminal!" << endl;
+                    endSimulation();
+                    break;
+                }
             }
+
+            break;  // End of terminal related code
+        }
+        case ack:{
+            //// [AckMsg] goes here.
+
+            AckMsg* ackMsg = check_and_cast<AckMsg*>(msg);
+            int linkIndex = ackMsg->getArrivalGate()->getIndex();
+
+            MessageIDSet::iterator it = msgSet.find(ackMsg->getAckId());
+            if (it != msgSet.end()){
+                // Found the message that is ACK'ed
+
+                // Remove it from the ID set
+                msgSet.erase(it);
+                EV << "Satellite " << mySatAddress << ": Message ID: " << (*it) << " was ACK'ed by satellite " << ackMsg->getSrc() << endl;
+
+                // Update stored delay
+                updateLinkDelay(linkIndex, ackMsg->getDelaySuffered());
+            }
+            else{
+                // Received ACK for a message that is not mine
+                std::cout << "Received bad ACK" << endl;
+            }
+
+            delete msg;
+            break;  // End of link delay prediction code
         }
     }
+
+}
+
+void Routing::sendAck(Packet *pk){
+    /* Create and send an ACK message with total amount of delay on link
+     *      ACK is sent to the gate where [pk] came from.
+     * NOTE: Assuming the delays are symmetric (i.e. delay from X to Y = delay from Y to X)
+     * */
+
+    int linkIndex = pk->getArrivalGate()->getIndex();
+    AckMsg *ackMsg = new AckMsg("ACK", ack);
+    ackMsg->setByteLength(22 + ACK_SIZE);
+    ackMsg->setDelaySuffered(simTime().dbl() - pk->getLastHopTime());
+    ackMsg->setAckId(pk->getId());
+    ackMsg->setSrc(mySatAddress);
+
+    // Update delay (Assuming symmetry)
+    updateLinkDelay(linkIndex,simTime().dbl() - pk->getLastHopTime());
+
+    send(ackMsg, "out", linkIndex);
+}
+
+double Routing::getAverageLinkDelay(){
+    /* Return the average of all link delays
+     * */
+
+    double res = 0;
+    for(int i = 0; i < MAXAMOUNTOFLINKS; i++){
+        // Sum of all delays (not averages)
+        res += linkDelay[i] * linkMsgNum[i];
+    }
+
+    return res/totalMsgNum;
+}
+
+void Routing::getPosition(int satAddress, double &posX, double &posY){
+        /* Find the (X,Y) position of the a given satellite [satAddress].
+         * The position is extracted from the mobility module's display string (the one that
+         *      changes during runtime).
+         * Position is stored in given [posX] & [posY]
+         * */
+
+        // Read display string of the given satellite
+        cDisplayString *cDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
+
+        std::string dispStr(cDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
+        std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
+
+        dispStr = dispStr.substr(pos);                          // Cut string until the first number
+        posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
+                                                                //      location AFTER the first double
+
+        dispStr = dispStr.substr(pos);                          // Remove the X position from string
+
+        pos = dispStr.find_first_of("0123456789");              // find position of the first number
+        dispStr = dispStr.substr(pos);                          // Cut string until the first number
+        posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
+}
+
+void Routing::updateLinkDelay(int linkIndex, double delay){
+    /* Update the [linkIndex]-th average delay
+     *
+     *  Denote: old delay = T'
+     *          new delay = T
+     *          number of messages in link i (after increment) = n_i
+     *          total number of messages = n
+     *          delay suffered (ACK content) = D
+     *
+     *          Idea: if old average is T' = Sum[a_i, {i, 1, n_i - 1}]/(n_i - 1) then
+     *                 new average is T = Sum[a_i, {i, 1, n_i}] = Sum[a_i, {i, 1, n_i - 1}]/n_i + a_n_i/n_i
+     *                                  = Sum[a_i, {i, 1, n_i - 1}]/n_i * (n_i - 1)/(n_i - 1) + a_n_i/n_i
+     *                                  = T' * (n_i - 1)/n_i + a_n_i/n_i = T' * (n_i - 1)/n_i + D * 1/n_i
+     *                                  = [T' (n_i - 1) + D]/n_i
+     *
+     *          This calculation method was selected as it erases the default value as soon as a new value is found
+     * */
+
+    linkMsgNum[linkIndex]++;
+    totalMsgNum++;
+    linkDelay[linkIndex] = (linkDelay[linkIndex] * (linkMsgNum[linkIndex]-1) + delay)/linkMsgNum[linkIndex];
 }

@@ -22,5 +22,6 @@ packet Packet
     int TopologyID @packetData;
     int gateIDList[] @packetData;
     int packetList[] @packetData;
+    double lastHopTime @packetData;
 }
 
