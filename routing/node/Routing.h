@@ -13,7 +13,8 @@
 #include "AckMsg_m.h"
 
 #define MAXAMOUNTOFLINKS 6          //lll: max number of links available
-#define DEFAULT_DELAY 0.0003        // 3msec
+#define DEFAULT_DELAY 0.000003      // 3usec
+#define SATELLITE_SPEED 50          // Satellite speed, have to be the same value as in mobility.xml
 
 //lll: weight range. not in use
 #define MAX_VALUE 10000
@@ -43,6 +44,7 @@ public:
     int rootID = -1;
     int neighbors[MAXAMOUNTOFLINKS];
     ~Routing();
+    int getAddress() {return mySatAddress;};
 private:
     int mySatAddress;
     /*Flag to determine if a node has the updated topology. otherwise, it might send messages.
@@ -144,13 +146,9 @@ private:
                                       // Will become true after parsing the position from grid
 
     //// Delay & position prediction
-    int packetDropCounter = 0;        // Number of terminal packets lost (No match in any of the above tables)
-    int packetDropCounterFromHops = 0;// Debugging
-    double estimatedLinkDelay = 1.2;  // Estimated average link delay, used for predictions
-                                      // Estimated time = # of hops to target satellite * [estimatedLinkDelay]
-                                      // TODO: implement estimatedTime calculation via ACKs. Right now 1.2 is used
-                                      // [(radius/speed)/# of satellites=(1500/50)/25=1.2sec]
-    double linkDelay[MAXAMOUNTOFLINKS];     // Current average delay for the i-th link
+    int packetDropCounter = 0;                    // Number of terminal packets lost (No match in any of the above tables)
+    int packetDropCounterFromHops = 0;            // Debugging
+    double linkDelay[MAXAMOUNTOFLINKS];           // Current average delay for the i-th link
     int linkMsgNum[MAXAMOUNTOFLINKS] = {0};       // How many messages were getting in via link i
     int totalMsgNum = 0;                          // Sum of above array, accelerates calculation by a bit
 
@@ -251,8 +249,9 @@ protected:
     int calculateFutureSatellite(int destTerminal);
     void sendAck(Packet *pk);
     double getAverageLinkDelay();
-    void getPosition(int satAddress, double &posX, double &posY);
+    void getSatellitePosition(int satAddress, double &posX, double &posY);
     void updateLinkDelay(int linkIndex, double delay);
+    int getClosestSatellite(int terminalAddress, int *numOfHops=nullptr, double estimatedTime=0);
 };
 
 Define_Module(Routing);

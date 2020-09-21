@@ -15,9 +15,13 @@
 
 void Routing::finish(){
     recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
-    EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
-    EV << "Dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
-    EV << "Satellite " << mySatAddress << " had delay of " << getAverageLinkDelay() << endl;
+    // TODO: Counters should be incremented at source!!!!
+    if (packetDropCounter)
+        EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
+    if (packetDropCounterFromHops)
+        EV << "Dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
+    if (totalMsgNum)
+        EV << "Satellite " << mySatAddress << " had delay of " << getAverageLinkDelay() << endl;
 }
 
 Routing::~Routing(void){
@@ -1672,7 +1676,7 @@ void Routing::getRootsArray(cTopology *OrigTopo, int m){
     int dist = ceil((nodeNum - m)/m);
     int src, dst, diameter = INT_MAX;
     std::list<int> lst;
-    cTopology *tmpTopo = CreateTopology(OrigTopo, "name");
+    cTopology *tmpTopo = CreateTopology(OrigTopo, "MST for root selection");
 
     // Push roots to list
     while(diameter > m){
@@ -1757,14 +1761,11 @@ int Routing::calculateFutureSatellite(int destTerminal){
     /*
      * */
 
-    /* TODO: 1. Implement ACK mechanism for messages
-     *       2. Using ACKs estimate average link delay
-     *       3. This function will calculate the future satellite by looking for the closest satellite to terminal
-     *              in (average link delay * hops) = T time.
-     *              New position = (old position + v * T) % (maxY - minY)
-     *                  NOTES: might change to -v, depends on direction.
-     *                         maxY - minY is "total map size", the modulo is for the wrap
-     * */
+    // Calculate number of hops
+    int numOfHops;
+    getClosestSatellite(destTerminal, &numOfHops);
+
+    return getClosestSatellite(destTerminal, nullptr, numOfHops * getAverageLinkDelay());
 
     cModule *ter = getParentModule()->getParentModule()->getSubmodule("terminal", destTerminal)->getSubmodule("app");
     TerminalApp *terApp = check_and_cast<TerminalApp*>(ter);
@@ -2724,21 +2725,6 @@ void Routing::handleMessage(cMessage *msg) {
                 case terminal_message:{
                     //// Received message from a terminal
 
-                    /* TODO: Look up in tables to find if the destination is around.
-                     *          if in my table, send it the raw message
-                     *          if in neighbors table, send it to said neighbor
-                     *          if not in both - Satellite prediction
-                     *
-                     *                  Questions:
-                                            1. If target satellite is me/direct neighbor - do I keep the message (schedule at)?
-                                            2. What happens when disconnect comes in the middle of transmission?
-                                                    Barrier?
-                                                    Should we send the packet to the last neighbor that sent terminal_connect with
-                                                    the appropriate address? (Prevent this from happening)
-                     *
-                     *
-                     */
-
                     Packet* pk = createPacketForDestinationSatellite(terMsg);
                     if (pk){
                         // Packet created successfully
@@ -2890,10 +2876,10 @@ double Routing::getAverageLinkDelay(){
         res += linkDelay[i] * linkMsgNum[i];
     }
 
-    return res/totalMsgNum;
+    return res? res/totalMsgNum : DEFAULT_DELAY;
 }
 
-void Routing::getPosition(int satAddress, double &posX, double &posY){
+void Routing::getSatellitePosition(int satAddress, double &posX, double &posY){
         /* Find the (X,Y) position of the a given satellite [satAddress].
          * The position is extracted from the mobility module's display string (the one that
          *      changes during runtime).
@@ -2938,4 +2924,92 @@ void Routing::updateLinkDelay(int linkIndex, double delay){
     linkMsgNum[linkIndex]++;
     totalMsgNum++;
     linkDelay[linkIndex] = (linkDelay[linkIndex] * (linkMsgNum[linkIndex]-1) + delay)/linkMsgNum[linkIndex];
+}
+
+int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double estimatedTime){
+    /* This function looks for the closest satellite to the terminal (referred with [terminalAddress]) at t = simTime() + [estimatedTime]
+     * This function also returns the number of hops from this satellite to the closest satellite (value is returned via [numOfHops])
+     *      if numOfHosts is not [nullptr]. In addition, if [estimatedTime] is 0 (Looking for number of hops)
+     *      the function will print the estimated path + the number of hops
+     *
+     * */
+
+    TerminalApp* terApp = check_and_cast<TerminalApp*>(getParentModule()->getParentModule()->getSubmodule("terminal", terminalAddress)->getSubmodule("app"));
+    double terminalPosX, terminalPosY, satPosX, satPosY;
+    double maxX, minX, maxY, minY;
+    maxX = getParentModule()->getParentModule()->par("maxX").doubleValue();
+    minX = getParentModule()->getParentModule()->par("minX").doubleValue();
+    maxY = getParentModule()->getParentModule()->par("maxY").doubleValue();
+    minY = getParentModule()->getParentModule()->par("minY").doubleValue();
+
+    // Get target terminal position
+    terApp->getPos(terminalPosX, terminalPosY);
+
+    // Find minimum distance satellite
+    double minDistance = DBL_MAX;
+    int satAddress;
+    for(int i = 0; i < num_of_hosts; i++){
+        getSatellitePosition(i, satPosX,satPosY);
+
+        /* Calculate new position. If the new position is outside of range, subtract the range
+         *      until the position is inside again ("Completing loops")
+         */
+        satPosY += estimatedTime * SATELLITE_SPEED;
+        while (satPosY > maxY){
+            satPosY -= (maxY - minY);
+        }
+
+        // Save minimum distance and result
+        double dist = sqrt(pow(terminalPosX-satPosX,2)+pow(terminalPosY-satPosY,2));
+        if (dist < minDistance){
+            minDistance = dist;
+            satAddress = i;
+        }
+    }
+
+    // Calculate how many hops are needed
+    if (numOfHops){
+        //// pointer received, save number of hops to it
+
+        // Get topology & nodes
+        cTopology *tmpTopo = CreateTopology(topo, "traversal topology");
+        cTopology::Node *targetNode = tmpTopo->getNode(satAddress), *curr;
+        tmpTopo->calculateWeightedSingleShortestPathsTo(targetNode);
+        curr = tmpTopo->getNodeFor(getParentModule());
+
+        // Route to closest satellite - source print
+        if (!estimatedTime)
+            EV << "Route to closest satellite: " << mySatAddress;
+
+        // Traverse topology, keep track of hops
+        int hops = 0;
+        while (curr != targetNode){
+            // Move to next node
+            cTopology::LinkOut *tempLinkOut = curr->getPath(satAddress);
+            if (tempLinkOut){
+                curr = tempLinkOut->getRemoteNode();
+                hops++;
+
+                // Route to closest satellite - inner + end of path print
+                if (!estimatedTime)
+                    EV << "->" << check_and_cast<Routing*>(curr->getModule()->getSubmodule("routing"))->getAddress();
+            }
+            else{
+                std::cout << "Error! Link does not exist" << endl;
+                exit(2);
+            }
+        }
+
+        // Print total number of hops estimated
+        if (!estimatedTime)
+            EV << ". Total hops: " << hops << endl;
+
+        // Save result
+        *numOfHops = hops;
+
+        // Clean up
+        delete tmpTopo;
+    }
+
+    return satAddress;
 }
