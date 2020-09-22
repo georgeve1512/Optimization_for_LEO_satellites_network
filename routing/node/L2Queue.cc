@@ -237,7 +237,8 @@ void L2Queue::handleMessage(cMessage *msg)
         // emit signal to routing
         if ( load_balance_mode )
         {
-            check_and_cast<cPacket *>(msg) -> setBitLength((int64_t) (1500*8));
+            if (msg->getKind() != ack)
+                check_and_cast<cPacket *>(msg) -> setBitLength((int64_t) (1500*8));
             queuesizesignal = queue.getLength() + 1;
             char *sig  = signalDeParser(queuesizesignal,myAddress);
             if(hasListeners(LBS))

@@ -15,13 +15,16 @@
 
 void Routing::finish(){
     recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
-    // TODO: Counters should be incremented at source!!!!
-    if (packetDropCounter)
-        EV << "Dropped packets due to wrong predictions: " << packetDropCounter << endl;
-    if (packetDropCounterFromHops)
-        EV << "Dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
-    if (totalMsgNum)
+    if (totalMsgNum){
         EV << "Satellite " << mySatAddress << " had delay of " << getAverageLinkDelay() << endl;
+    }
+    if (packetDropCounter){
+        EV << "Satellite " << mySatAddress << " dropped packets due to wrong predictions: " << packetDropCounter << endl;
+        EV << "Prediction miss ration: " << packetDropCounter/(double)packetCounter * 100 << "%" << endl;
+    }
+    if (packetDropCounterFromHops){
+        EV << "Satellite " << mySatAddress << " dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
+    }
 }
 
 Routing::~Routing(void){
@@ -1390,8 +1393,9 @@ void Routing::sendMessage(Packet * pk, int outGateIndex, bool transmitAck)
         sendAck(pk);
     }
     pk->setLastHopTime(simTime().dbl());        // Set time-stamp (that is unchanged by queue)
-    if (pk->getPacketType() == message)
-        msgSet.insert(pk->getId());             // Wait for an ACK only for messages
+    if (pk->getPacketType() == message){
+        msgSet.insert(pk->getId());             // ACK is only for messages
+    }
 
     if( load_balance_mode && active_links > 2 )
     {
@@ -1421,8 +1425,9 @@ void Routing::sendMessage(Packet * pk, int outGateIndex, bool transmitAck)
       check_and_cast<L2Queue*>(getParentModule()->getSubmodule("queue", i)) -> deleteMessageAndRecord(pk,false);
       if (pk->getTopologyVarForUpdate())
           pk->deleteTopologyVar();
+      Routing *rt = check_and_cast<Routing*>(getParentModule()->getParentModule()->getSubmodule("rte", pk->getSrcAddr())->getSubmodule("routing"));
+      rt->packetDropCounterFromHops++;
       delete pk;
-      packetDropCounterFromHops++;
     }
     else
     {
@@ -1795,7 +1800,7 @@ Packet* Routing::createPacketForDestinationSatellite(TerminalMsg *terminalMessag
     terminalMessage -> setPacketType(message);
     terminalMessage -> setByteLength(22);     // Ethernet protocol header/trailer
     terminalMessage -> setHopCount(0);
-    terminalMessage->setTopologyID(currTopoID);
+    terminalMessage-> setTopologyID(currTopoID);
     int i=0;
     while( i <  num_of_hosts )
     {
@@ -2303,12 +2308,14 @@ void Routing::handleMessage(cMessage *msg) {
                                         int outGateIndex = rtable.find(it->second)->second;
                                         Packet* newPacket = createPacketForDestinationSatellite(terMsg, false, it->second);
                                         sendMessage(newPacket, outGateIndex, false);
+                                        packetCounter++;
                                     }
                                     else{
                                         // No known neighbor has the terminal connected
                                         EV << "Terminal " << terMsg->getDestAddr() << " is not around, dropping message" <<endl;
+                                        Routing *rt = check_and_cast<Routing*>(getParentModule()->getParentModule()->getSubmodule("rte", pk->getSrcAddr())->getSubmodule("routing"));
+                                        rt->packetDropCounter++;
                                         delete terMsg;
-                                        packetDropCounter++;
                                     }
                                 }
 
@@ -2442,7 +2449,8 @@ void Routing::handleMessage(cMessage *msg) {
 
                         //load_balance
                         if(pk -> getHopCount() > 20){
-                            packetDropCounterFromHops++;
+                            Routing *rt = check_and_cast<Routing*>(getParentModule()->getParentModule()->getSubmodule("rte", pk->getSrcAddr())->getSubmodule("routing"));
+                            rt->packetDropCounterFromHops++;
 
                             if (pk->getTopologyVarForUpdate())
                                 pk->deleteTopologyVar();
@@ -2729,11 +2737,12 @@ void Routing::handleMessage(cMessage *msg) {
                     if (pk){
                         // Packet created successfully
                         scheduleAt(simTime(), pk);
+                        packetCounter++;
                     }
                     else{
                         // No satellite will be connected to target terminal
-                        delete terMsg;
                         packetDropCounter++;
+                        delete terMsg;
                     }
                     break;
                 }
@@ -2830,14 +2839,15 @@ void Routing::handleMessage(cMessage *msg) {
 
                 // Remove it from the ID set
                 msgSet.erase(it);
-                EV << "Satellite " << mySatAddress << ": Message ID: " << (*it) << " was ACK'ed by satellite " << ackMsg->getSrc() << endl;
+                EV << "Satellite " << ackMsg->getSrc() << " ACK'ed message ID: " << (*it) << " (Satellite " << mySatAddress << "). Time " << simTime().dbl() << endl;
 
                 // Update stored delay
                 updateLinkDelay(linkIndex, ackMsg->getDelaySuffered());
             }
             else{
                 // Received ACK for a message that is not mine
-                std::cout << "Received bad ACK" << endl;
+                std::cout << endl << "Received bad ACK" << endl;
+                exit(1);
             }
 
             delete msg;
@@ -2854,7 +2864,8 @@ void Routing::sendAck(Packet *pk){
      * */
 
     int linkIndex = pk->getArrivalGate()->getIndex();
-    AckMsg *ackMsg = new AckMsg("ACK", ack);
+    std::string ackName = "ACK on " + std::to_string(pk->getId());
+    AckMsg *ackMsg = new AckMsg(ackName.c_str(), ack);
     ackMsg->setByteLength(22 + ACK_SIZE);
     ackMsg->setDelaySuffered(simTime().dbl() - pk->getLastHopTime());
     ackMsg->setAckId(pk->getId());

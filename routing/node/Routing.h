@@ -57,7 +57,6 @@ private:
     bool keepAliveTempLinksFlag = false;
     int topocounter = 0;
     bool fiftLink = true;
-    int packetCounter = 0;
     //lll: LAST variables predefined variable ( getParentModule()->par("variable"); )
     int alpha = 0;
     int m_var = 0;
@@ -151,8 +150,9 @@ private:
     double linkDelay[MAXAMOUNTOFLINKS];           // Current average delay for the i-th link
     int linkMsgNum[MAXAMOUNTOFLINKS] = {0};       // How many messages were getting in via link i
     int totalMsgNum = 0;                          // Sum of above array, accelerates calculation by a bit
+    int packetCounter = 0;                        // How many messages the satellite was asked to route
 
-    typedef std::set<long> MessageIDSet;
+    typedef std::multiset<long> MessageIDSet;
     MessageIDSet msgSet;            // Collection of message ID's waiting to be ACK'ed
 
 protected:
