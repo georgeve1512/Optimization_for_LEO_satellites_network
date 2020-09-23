@@ -24,7 +24,7 @@ using namespace omnetpp;
 
 
 /**
- * Terminal's basic application. 07.09.2020 - Only sends UDP data to a random terminal
+ * Terminal's basic application.
  */
 
 class TerminalApp : public cSimpleModule
@@ -40,12 +40,19 @@ class TerminalApp : public cSimpleModule
         void getPos(double &posX, double &posY) {posX = myPosX; posY = myPosY;};
     protected:
         // Simulation helpers
-        cMessage *appMsg;                         // Reduce memory allocations
-        cMessage *updateMyPositionMsg;            // Reduce memory allocations
-        cMessage *updateMainSatellitePositionMsg; // Reduce memory allocations
-        cMessage *updateSubSatellitePositionMsg;  // Reduce memory allocations
+        cMessage *appMsg;                         // Self message for regular app
+        cMessage *burstAppMsg;                    // Self message for burst app
+        cMessage *pingAppMsg;                     // Self message for ping app
+        cMessage *updateMyPositionMsg;            // Self message for annual position update (self)
+        cMessage *updateMainSatellitePositionMsg; // Self message for annual position update (main satellite)
+        cMessage *updateSubSatellitePositionMsg;  // Self message for annual position update (sub satellite)
         double rate;
-        int *indexList;
+
+        // Regular App helpers
+        int *indexList;             // Index list for uniform choice of target terminal
+
+        // Burst App helpers
+        int *numOfBurstMsg;         // How many messages left from self to all other terminals
 
         // Simulation parameters
         int myAddress;              // UID
@@ -55,11 +62,11 @@ class TerminalApp : public cSimpleModule
         int numOfSatellites;        // Number of satellites in simulation
 
         // Volatile Random Numbers - Expression is re-evaluated when reading value
-        cPar *sendIATime;
-        cPar *packetLengthBytes;
-        cPar *burstNextInterval;
-        cPar *burstNextEvent;
-        cPar *burstSize;
+        cPar *sendIATime;           // Next time a regular app message is sent
+        cPar *packetLengthBytes;    // Length of a terminal message
+        cPar *burstNextInterval;    // Next time the burst app is activated (it can send more than one message)
+        cPar *burstSize;            // Number of messages in the flow
+        cPar *pingTime;             // Next time a ping is sent
 
         // Variables that read self's position (For future use)
         cDisplayString *myDispStr;  // Self's display string to extract (X,Y) position
@@ -88,9 +95,15 @@ class TerminalApp : public cSimpleModule
         int subConnectionIndex;        // Index inside sub satellite's connection array, send in 0sec (simulation helper)
 
         // For statistics
-        int numSent;
-        int numReceived;
-        simsignal_t endToEndDelaySignal;
+        int numSent;                    // Number of sent messages to other terminals
+        int numReceived;                // Number of received messages from other terminals. Destination increments this in source and records.
+        cOutVector *latencyVector;      // End-to-end delay between each terminal and self
+        cOutVector hopCountVector;      // Record hop count with time stamps
+        cHistogram hopCountHistogram;   // Histogram of hops, allows to find hops PDF
+        int64_t totalBytesSent;         // Helper for throughput calculation.
+        int64_t bytesSentSuccessfully;  // Helper for throughput calculation. Destination adds number of received bytes in source.
+        cOutVector throughput;          // Calculation: bytesSentSuccessfully/totalBytesSent.
+                                        // NOTE: numReceived/numSent is good when all messages are of the same size
 
         // Simulation basic functions
         virtual void initialize() override;

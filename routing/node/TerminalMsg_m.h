@@ -29,6 +29,7 @@ class TerminalMsg;
  *     int packetType \@packetData;
  *     int mode \@packetData;
  *     int replyType \@packetData;
+ *     int hopCount;
  * }
  * </pre>
  */
@@ -40,6 +41,7 @@ class TerminalMsg : public ::omnetpp::cPacket
     int packetType = 0;
     int mode = 0;
     int replyType = 0;
+    int hopCount = 0;
 
   private:
     void copy(const TerminalMsg& other);
@@ -68,6 +70,8 @@ class TerminalMsg : public ::omnetpp::cPacket
     virtual void setMode(int mode);
     virtual int getReplyType() const;
     virtual void setReplyType(int replyType);
+    virtual int getHopCount() const;
+    virtual void setHopCount(int hopCount);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const TerminalMsg& obj) {obj.parsimPack(b);}

@@ -22,20 +22,16 @@ package node;
 simple TerminalApp
 {
         parameters:
-        int address;  // local node address
+        int address;
         int numOfTerminals;
-        volatile double sendIaTime @unit(s) = default(exponential(1ms)); // time between generating packets
-        volatile int packetLength @unit(byte) = default(1500byte);  	 // Ethernet maximum payload 
-        volatile double burst_next_interval @unit(s) = default(truncnormal(100s,20s));
-        volatile double burst_next_event @unit(s) = default(truncnormal(10s,2s));
-        volatile int burst_size  = default(truncnormal(300,50));
+        volatile double sendIaTime @unit(s) = default(exponential(1ms)); // Time between generating regular packets
+        volatile int packetLength @unit(byte) = default(1500byte);  	 // Packet size 
+        volatile double burst_next_interval @unit(s) = default(truncnormal(10s,2s));	// Time between burst app activations
+        volatile double burst_size  = default(truncnormal(300,50));		// Number of flow messages. Will be converted to int in code
+        volatile double pingTime @unit(s) = default(1s);				// Time between pings
         @display("i=block/browser");
-        @signal[endToEndDelay](type="simtime_t");
-        @statistic[endToEndDelay](title="end-to-end delay of arrived packets";unit=s;record=vector,mean,max,count;interpolationmode=none);
         
     gates:
         input mainIn @directIn;
-        //output mainOut;
         input subIn @directIn;
-        //output subOut;
 }

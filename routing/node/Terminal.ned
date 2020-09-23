@@ -48,7 +48,5 @@ module Terminal
         }
     connections allowunconnected:
         mainIn --> app.mainIn;
-        //app.mainOut --> mainOut;
 		subIn --> app.subIn;
-        //app.subOut --> subOut;
 }

@@ -817,7 +817,7 @@ void Routing::send_phase1_update(){
                 phase1_update_message->setPacketType(phase1_update);
                 phase1_update_message->setDestAddr(neighbors[i]);
                 phase1_update_message->setTopologyID(currTopoID);
-                phase1_update_message -> setByteLength(1);
+                phase1_update_message -> setByteLength(64);
 
                 // leader_table is updated, the update message is the leader_table data
                 for (int j = 0; j < num_of_hosts; j++)
@@ -897,7 +897,7 @@ void Routing::scheduleSendLinkInfo() {
              phase2_initiate->setDestAddr(i);
              phase2_initiate->setPacketType(phase2_link_info);
              phase2_initiate->setTopologyID(currTopoID);
-             phase2_initiate -> setByteLength(1);
+             phase2_initiate -> setByteLength(1500);
 
              //find the gate to node Neighbors
              RoutingTable::iterator iter = rtable.find(i);
@@ -973,7 +973,7 @@ void Routing::schduleNewTopology() {
             phase4_initiate -> setPacketType(leader_to_roots);
             phase4_initiate -> setTopologyID(currTopoID);
             phase4_initiate -> setHopCount(0);
-            phase4_initiate -> setByteLength(1);
+            phase4_initiate -> setByteLength(1500);
             //set how many roots in data[0]
             phase4_initiate -> data[0] = rootCounter;
             //set the roots id's in data[1 to amountOfLeaders + 1] given searching less than num_of_hosts - 1 roots
@@ -1145,7 +1145,7 @@ void Routing::send_link_info_to_leader(){
     phase2_send_link_info_to_leader->setDestAddr(leader);
     phase2_send_link_info_to_leader->setPacketType(phase2_link_info);
     //phase2_send_link_info_to_leader->setTopologyID(currTopoID);
-    phase2_send_link_info_to_leader -> setByteLength(1);
+    phase2_send_link_info_to_leader -> setByteLength(1500);
     int i=0;
     for(i=0; i<topo->getNode(mySatAddress)->getNumInLinks(); i++)
 //    for(int i = 0; i<4; i++)
@@ -2153,12 +2153,11 @@ void Routing::handleMessage(cMessage *msg) {
                                 source_route -> setTopologyID(currTopoID);
                                 source_route -> setSrcAddr(mySatAddress);
                                 source_route -> setDestAddr(i);
-                                source_route -> setByteLength(1);
+                                source_route -> setByteLength(1500);
                                 source_route -> datadouble[0] = thisNode->getLinkOut(rootGateIndex)->getWeight();
                                 source_route -> datadouble[1] = -1;
                                 source_route -> data[0] = rootCounter;
                                 source_route -> data[1] = mySatAddress;
-                                pk -> setByteLength(1);
                                 Routing::LoadPacket(source_route, topo);
                                 for( int j = 2; j < num_of_hosts; j++ ){
                                     source_route->data[j] = -1;
@@ -2285,6 +2284,8 @@ void Routing::handleMessage(cMessage *msg) {
                                     //// Found terminal in my map
 
                                     EV << "Terminal " << terMsg->getDestAddr() << " is connected to me - satellite " << mySatAddress << endl;
+
+                                    terMsg->setHopCount(pk->getHopCount());
 
                                     if (isDirectPortTaken[it->second] == 1){
                                         // Main connection

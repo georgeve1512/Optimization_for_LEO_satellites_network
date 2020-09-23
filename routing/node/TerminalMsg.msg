@@ -23,4 +23,5 @@ packet TerminalMsg {
 	int packetType @packetData;
 	int mode @packetData;
 	int replyType @packetData;
+	int hopCount;
 }

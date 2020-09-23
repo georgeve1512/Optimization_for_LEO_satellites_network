@@ -84,6 +84,8 @@ enum terminalConnectionStatus{
 // Types of self messages in terminal
 enum selfMessageTypes{
     interArrivalTime,
+    burstAppProcess,
+    pingAppProcess,
     selfPositionUpdateTime,
     mainSatellitePositionUpdateTime,
     subSatellitePositionUpdateTime,
@@ -91,6 +93,14 @@ enum selfMessageTypes{
     initializeConnection
 };
 
+enum terminalMsgTypes{
+    udpSingle,
+    udpFlow,
+    ping,
+    pong
+};
+
 #define ACK_SIZE 5
+#define PING_SIZE 42
 
 #endif

@@ -236,6 +236,7 @@ void TerminalMsg::copy(const TerminalMsg& other)
     this->packetType = other.packetType;
     this->mode = other.mode;
     this->replyType = other.replyType;
+    this->hopCount = other.hopCount;
 }
 
 void TerminalMsg::parsimPack(omnetpp::cCommBuffer *b) const
@@ -246,6 +247,7 @@ void TerminalMsg::parsimPack(omnetpp::cCommBuffer *b) const
     doParsimPacking(b,this->packetType);
     doParsimPacking(b,this->mode);
     doParsimPacking(b,this->replyType);
+    doParsimPacking(b,this->hopCount);
 }
 
 void TerminalMsg::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -256,6 +258,7 @@ void TerminalMsg::parsimUnpack(omnetpp::cCommBuffer *b)
     doParsimUnpacking(b,this->packetType);
     doParsimUnpacking(b,this->mode);
     doParsimUnpacking(b,this->replyType);
+    doParsimUnpacking(b,this->hopCount);
 }
 
 int TerminalMsg::getSrcAddr() const
@@ -308,6 +311,16 @@ void TerminalMsg::setReplyType(int replyType)
     this->replyType = replyType;
 }
 
+int TerminalMsg::getHopCount() const
+{
+    return this->hopCount;
+}
+
+void TerminalMsg::setHopCount(int hopCount)
+{
+    this->hopCount = hopCount;
+}
+
 class TerminalMsgDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -318,6 +331,7 @@ class TerminalMsgDescriptor : public omnetpp::cClassDescriptor
         FIELD_packetType,
         FIELD_mode,
         FIELD_replyType,
+        FIELD_hopCount,
     };
   public:
     TerminalMsgDescriptor();
@@ -380,7 +394,7 @@ const char *TerminalMsgDescriptor::getProperty(const char *propertyname) const
 int TerminalMsgDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
-    return basedesc ? 5+basedesc->getFieldCount() : 5;
+    return basedesc ? 6+basedesc->getFieldCount() : 6;
 }
 
 unsigned int TerminalMsgDescriptor::getFieldTypeFlags(int field) const
@@ -397,8 +411,9 @@ unsigned int TerminalMsgDescriptor::getFieldTypeFlags(int field) const
         FD_ISEDITABLE,    // FIELD_packetType
         FD_ISEDITABLE,    // FIELD_mode
         FD_ISEDITABLE,    // FIELD_replyType
+        FD_ISEDITABLE,    // FIELD_hopCount
     };
-    return (field >= 0 && field < 5) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 6) ? fieldTypeFlags[field] : 0;
 }
 
 const char *TerminalMsgDescriptor::getFieldName(int field) const
@@ -415,8 +430,9 @@ const char *TerminalMsgDescriptor::getFieldName(int field) const
         "packetType",
         "mode",
         "replyType",
+        "hopCount",
     };
-    return (field >= 0 && field < 5) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 6) ? fieldNames[field] : nullptr;
 }
 
 int TerminalMsgDescriptor::findField(const char *fieldName) const
@@ -428,6 +444,7 @@ int TerminalMsgDescriptor::findField(const char *fieldName) const
     if (fieldName[0] == 'p' && strcmp(fieldName, "packetType") == 0) return base+2;
     if (fieldName[0] == 'm' && strcmp(fieldName, "mode") == 0) return base+3;
     if (fieldName[0] == 'r' && strcmp(fieldName, "replyType") == 0) return base+4;
+    if (fieldName[0] == 'h' && strcmp(fieldName, "hopCount") == 0) return base+5;
     return basedesc ? basedesc->findField(fieldName) : -1;
 }
 
@@ -445,8 +462,9 @@ const char *TerminalMsgDescriptor::getFieldTypeString(int field) const
         "int",    // FIELD_packetType
         "int",    // FIELD_mode
         "int",    // FIELD_replyType
+        "int",    // FIELD_hopCount
     };
-    return (field >= 0 && field < 5) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 6) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **TerminalMsgDescriptor::getFieldPropertyNames(int field) const
@@ -553,6 +571,7 @@ std::string TerminalMsgDescriptor::getFieldValueAsString(void *object, int field
         case FIELD_packetType: return long2string(pp->getPacketType());
         case FIELD_mode: return long2string(pp->getMode());
         case FIELD_replyType: return long2string(pp->getReplyType());
+        case FIELD_hopCount: return long2string(pp->getHopCount());
         default: return "";
     }
 }
@@ -572,6 +591,7 @@ bool TerminalMsgDescriptor::setFieldValueAsString(void *object, int field, int i
         case FIELD_packetType: pp->setPacketType(string2long(value)); return true;
         case FIELD_mode: pp->setMode(string2long(value)); return true;
         case FIELD_replyType: pp->setReplyType(string2long(value)); return true;
+        case FIELD_hopCount: pp->setHopCount(string2long(value)); return true;
         default: return false;
     }
 }

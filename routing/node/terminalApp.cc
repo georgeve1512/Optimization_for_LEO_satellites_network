@@ -36,7 +36,7 @@ Define_Module(TerminalApp);
  *              are at distance of [thresholdRadius] from terminal.
  *      2. Send a [terminal_connect] message to a satellite. The satellite then begins looking for an open port to assign to terminal.
  *      3. The satellite returns [terminal_index_assign] message, which contains port index. If no port was found the assigned index is
- *               -1, and every self message of traffic creation is ignored until a satellite is found.
+ *              -1, and every self message of traffic creation is ignored until a satellite is found.
  * The disconnection method is different - send [terminal_disconnect] message and the satellite simply removes terminal from registry.
  *
  * When not connected to any satellite, the "update self position message" self message needs to be sent each update interval, to try
@@ -48,6 +48,7 @@ Define_Module(TerminalApp);
 /************************************************************************************************************************************/
 TerminalApp::~TerminalApp(){
     delete indexList;
+    delete numOfBurstMsg;
 }
 
 void TerminalApp::updatePosition(cDisplayString *cDispStr, double &posX, double &posY){
@@ -137,6 +138,8 @@ void TerminalApp::initialize()
 {
     // Initialize message pointers
     appMsg = nullptr;
+    burstAppMsg = nullptr;
+    pingAppMsg = nullptr;
     updateMyPositionMsg = nullptr;
     updateMainSatellitePositionMsg = nullptr;
     updateSubSatellitePositionMsg = nullptr;
@@ -149,11 +152,16 @@ void TerminalApp::initialize()
     rate =  check_and_cast<cDatarateChannel*>(getParentModule()->getParentModule()->getSubmodule("rte", 0)->getSubmodule("queue", 0)->gate("line$o")->getTransmissionChannel())->getDatarate();
     thresholdRadius = radius * getParentModule()->par("frac").doubleValue();
 
+    //// Regular App
+    sendIATime = &par("sendIaTime");
+    packetLengthBytes = &par("packetLength");
     /* Create an index array of possible targets.
      * The array is {0,1,...,numOfTerminals} without [myAddress].
      * When choosing a destination we take a random integer (name it
      *      'r') in range [0,numOfTerminals). That's the index
      *      in the above array. The destination itself is indexList[r]
+     * There are numOfTerminals-1 elements in the array, meaning the
+     *      index goes from 0 to numOfTerminals-2
      * In code: setDestAddr(indexList[intuniform(0, numOfTerminals-2)])
      * */
     indexList = new int[numOfTerminals-1];
@@ -164,26 +172,46 @@ void TerminalApp::initialize()
         }
     }
 
-    //// Regular App
-    sendIATime = &par("sendIaTime");
-    packetLengthBytes = &par("packetLength");
-
-    //// Burst App - not in use 03.09.2020
+    //// Burst App
     burstNextInterval = &par("burst_next_interval");
-    burstNextEvent = &par("burst_next_event");
     burstSize = &par("burst_size");
+    /* Create a 'flow' array. Every time a message from a flow is sent,
+     *      reduce the number saved in the array (at target index) by 1.
+     *      Messages are sent after [burstNextInterval], and only if the
+     *      relevant position in the array is not 0.
+     * When the number hits 0, the next time the burst app is activated
+     *      it only generates a random number (via burstSize) and does
+     *      nothing else.
+     * */
+    numOfBurstMsg = new int[numOfTerminals];
+    for(int i = 0, j = 0; i < numOfTerminals; i++){
+        numOfBurstMsg[i] = 0;
+    }
+
+    //// Ping App
+    pingTime = &par("pingTime");
 
     // Initialize statistics
     numSent = 0;                                           // Record with recordScalar()
     numReceived = 0;                                       // Record with recordScalar()
-    endToEndDelaySignal = registerSignal("endToEndDelay"); // Record with emit()
+    latencyVector = new cOutVector[numOfTerminals];        // Record with .record() method
+    for(int i = 0; i < numOfTerminals; i++){
+        std::string latencyName = "latency with " + std::to_string(i);
+        latencyVector[i].setName(latencyName.c_str());
+        latencyVector[i].setUnit("ms");
+    }
+    hopCountVector.setName("Hop Count Vector");            // Record with .record() method
+    hopCountHistogram.setName("Hop Count Histogram");      // First .collect() data, at finish use .record() method
+    bytesSentSuccessfully = 0;
+    totalBytesSent = 0;
+    throughput.setName("Throughput");                      // Record with .record() method
 
     // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
     updateInterval = 0; //getParentModule()->getSubmodule("mobility")->par("updateInterval").doubleValue();
     scheduleAt(simTime(), new cMessage("Initialize self position", initializeMyPosition));
 
-    // Initialize satellite database
+    // Initialize satellite databases
     isConnected = disconnected;
     resetSatelliteData(mainSatAddress, mainSatDispStr, mainSatPosX, mainSatPosY, mainSatUpdateInterval, mainConnectionIndex, updateMainSatellitePositionMsg);
     resetSatelliteData(subSatAddress, subSatDispStr, subSatPosX, subSatPosY, subSatUpdateInterval, subConnectionIndex, updateSubSatellitePositionMsg);
@@ -191,8 +219,17 @@ void TerminalApp::initialize()
     // Initialize satellite connection - connect to closest satellite as main
     scheduleAt(simTime(), new cMessage("Initialize connection", initializeConnection));
 
+    // Start regular app
     appMsg = new cMessage("Inter Arrival Time Self Message", interArrivalTime);
     scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
+
+    // Start burst app
+    burstAppMsg = new cMessage("Burst App Activation Self Message", burstAppProcess);
+    scheduleAt(simTime() + 0.01, burstAppMsg);
+
+    // Start ping app
+    pingAppMsg = new cMessage("Ping App Self Message", pingAppProcess);
+    scheduleAt(simTime() + pingTime->doubleValue(), pingAppMsg);
 }
 
 void TerminalApp::handleMessage(cMessage *msg)
@@ -205,23 +242,25 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                 if (isConnected){
                     // Terminal is connected to a satellite - create new message
+
+                    int satAddress = isConnected == connected? mainSatAddress : subSatAddress;  // Choose target satellite - if there are two give priority to sub
+                    int connectionIndex = isConnected == connected? mainConnectionIndex : subConnectionIndex;
+
                     TerminalMsg *terMsg = new TerminalMsg("Regular Message", terminal);
                     terMsg->setSrcAddr(myAddress);
                     terMsg->setDestAddr(indexList[intuniform(0, numOfTerminals-2)]);
                     terMsg->setPacketType(terminal_message);
-                    terMsg->setByteLength(packetLengthBytes->intValue());
+                    terMsg->setByteLength((int)packetLengthBytes->intValue());
+                    terMsg->setReplyType(udpSingle);
 
-                    // Choose target satellite - if there are two give priority to sub
                     /* Note - sendDirect(cMessage *msg, simtime_t propagationDelay, simtime_t duration, cModule *mod, const char *gateName, int index=-1)
                      *        is being used here.
                      * */
-                    if (isConnected == connected)
-                        sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", mainSatAddress),"terminalIn", mainConnectionIndex);
-                    else
-                        sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", subSatAddress),"terminalIn", subConnectionIndex);
+                    sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", satAddress),"terminalIn", connectionIndex);
 
                     // Update statistics
                     numSent++;
+                    totalBytesSent += terMsg->getByteLength();
                 }
                 else{
                     EV << "Terminal " << myAddress << " is not connected to any satellite, retrying to send app data later" << endl;
@@ -231,6 +270,90 @@ void TerminalApp::handleMessage(cMessage *msg)
 
                 cancelEvent(appMsg);
                 scheduleAt(simTime() + sendIATime->doubleValue(), appMsg);
+                break;
+            }
+            case burstAppProcess:{
+                //// Burst app wishes to send data out
+
+                if (isConnected){
+                    //// Terminal is connected to a satellite - create new message
+
+                    int satAddress = isConnected == connected? mainSatAddress : subSatAddress;
+                    int connectionIndex = isConnected == connected? mainConnectionIndex : subConnectionIndex;
+                    for(int i = 0; i < numOfTerminals; i++){
+                        if (i != myAddress){ // Do not send messages to self
+                            if (numOfBurstMsg[i]){
+                                //// Burst app has traffic for terminal i
+                                TerminalMsg *terMsg = new TerminalMsg("Burst App Message", terminal);
+                                terMsg->setSrcAddr(myAddress);
+                                terMsg->setDestAddr(i);
+                                terMsg->setPacketType(terminal_message);
+                                terMsg->setByteLength((int)packetLengthBytes->intValue());
+                                terMsg->setReplyType(udpFlow);
+                                sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", satAddress),"terminalIn", connectionIndex);
+                                numOfBurstMsg[i]--;
+
+                                // Update statistics
+                                numSent++;
+                                totalBytesSent += terMsg->getByteLength();
+                            }
+                            else{
+                                //// No traffic exists for terminal i
+
+                                // Generate traffic
+                                numOfBurstMsg[i] = (int)(burstSize->doubleValue());
+                            }
+                        }
+                    }
+                }
+                else{
+                    //// Terminal is not connected to a satellite
+                    EV << "Terminal " << myAddress << " is not connected to any satellite, closing bursts..." << endl;
+
+                    // Closing bursts
+                    for(int i = 0, j = 0; i < numOfTerminals; i++){
+                        numOfBurstMsg[i] = 0;
+                    }
+
+                    if (hasGUI())
+                        getParentModule()->bubble("Not connected!");
+                }
+
+                cancelEvent(burstAppMsg);
+                scheduleAt(simTime() + burstNextInterval->doubleValue(), burstAppMsg);
+                break;
+            }
+            case pingAppProcess:{
+                //// Time to send ping
+
+                if (isConnected){
+                    // Terminal is connected to a satellite - send ping
+
+                    int satAddress = isConnected == connected? mainSatAddress : subSatAddress;
+                    int connectionIndex = isConnected == connected? mainConnectionIndex : subConnectionIndex;
+                    int dst = indexList[intuniform(0, numOfTerminals-2)];
+
+                    std::string pingName = "Ping to " + std::to_string(dst) + " from " + std::to_string(myAddress);
+                    TerminalMsg *terMsg = new TerminalMsg(pingName.c_str(), terminal);
+                    terMsg->setSrcAddr(myAddress);
+                    terMsg->setDestAddr(dst);
+                    terMsg->setPacketType(terminal_message);
+                    terMsg->setByteLength(PING_SIZE);
+                    terMsg->setReplyType(ping);
+                    sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", satAddress),"terminalIn", connectionIndex);
+
+                    // Update statistics
+                    numSent++;
+                    totalBytesSent += terMsg->getByteLength();
+                }
+                else{
+                    EV << "Terminal " << myAddress << " is not connected to any satellite, retrying to send ping later" << endl;
+                    if (hasGUI())
+                        getParentModule()->bubble("Not connected!");
+                }
+
+                cancelEvent(pingAppMsg);
+                scheduleAt(simTime() + pingTime->doubleValue(), pingAppMsg);
                 break;
             }
             case selfPositionUpdateTime:{
@@ -361,15 +484,62 @@ void TerminalApp::handleMessage(cMessage *msg)
         TerminalMsg *terMsg = check_and_cast<TerminalMsg*>(msg);
         switch (terMsg->getPacketType()){
             case terminal_message:{
-                //// Received message from other terminal
-                if (hasGUI()){
-                    getParentModule()->bubble("Received message!");
-                }
-
-                // Record end-to-end delay
+                //// Received message from other terminal (isConnected != 0)
+                // Record statistics
                 simtime_t eed = simTime() - terMsg->getCreationTime();
-                emit(endToEndDelaySignal, eed);
-                numReceived++;
+                latencyVector[terMsg->getSrcAddr()].record(eed);
+                hopCountVector.record(terMsg->getHopCount());
+                hopCountHistogram.collect(terMsg->getHopCount());
+
+                // Record throughput - at source
+                TerminalApp* src = check_and_cast<TerminalApp*>(getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr())->getSubmodule("app"));
+                src->bytesSentSuccessfully += terMsg->getByteLength();
+                src->numReceived++;
+                src->throughput.record((src->bytesSentSuccessfully)/(double)(src->totalBytesSent));
+                switch (terMsg->getReplyType()){
+                    case udpSingle:{
+                        if (hasGUI()){
+                            getParentModule()->bubble("Received message!");
+                        }
+                        break;
+                    }
+                    case udpFlow:{
+                        if (hasGUI()){
+                            getParentModule()->bubble("Received burst message!");
+                        }
+                        break;
+                    }
+                    case ping:{
+                        // Received ping, reply with pong.
+                        EV << "Terminal " << myAddress << " received ping from terminal " << terMsg->getSrcAddr() << ". Preparing to send pong" << endl;
+                        if (hasGUI())
+                            getParentModule()->bubble("Ping!");
+
+                        int satAddress = isConnected == connected? mainSatAddress : subSatAddress;
+                        int connectionIndex = isConnected == connected? mainConnectionIndex : subConnectionIndex;
+                        std::string pongName = "Pong to " + std::to_string(terMsg->getSrcAddr()) + " from " + std::to_string(myAddress);
+                        TerminalMsg *terMsg = new TerminalMsg(pongName.c_str(), terminal);
+                        terMsg->setSrcAddr(myAddress);
+                        terMsg->setDestAddr(terMsg->getSrcAddr());
+                        terMsg->setPacketType(terminal_message);
+                        terMsg->setByteLength(PING_SIZE);
+                        terMsg->setReplyType(pong);
+                        sendDirect(terMsg, 0, terMsg->getByteLength()/rate,getParentModule()->getParentModule()->getSubmodule("rte", satAddress),"terminalIn", connectionIndex);
+
+                        // Update statistics
+                        numSent++;
+                        totalBytesSent += terMsg->getByteLength();
+                        break;
+                    }
+                    case pong:{
+                        EV << "Terminal " << myAddress << " received pong from terminal " << terMsg->getSrcAddr() << "." << endl;
+                        if (hasGUI())
+                            getParentModule()->bubble("Pong!");
+                        break;
+                    }
+                } // End of replyType switch-case
+
+
                 break;
             }
             case terminal_index_assign:{
@@ -447,8 +617,11 @@ void TerminalApp::handleMessage(cMessage *msg)
 }
 
 void TerminalApp::finish(){
-    recordScalar("numSent",numSent);
-    recordScalar("numReceived",numReceived);
+    recordScalar("Messages Sent in Total",numSent);
+    recordScalar("Messages Sent Successfully",numReceived);
+    recordScalar("Bytes Sent in Total", totalBytesSent);
+    recordScalar("Bytes Sent Successfully", bytesSentSuccessfully);
+    hopCountHistogram.record();
     EV_INFO << "Terminal " << myAddress << ":" << endl;
     EV_INFO << "Received " << numReceived << " messages" << endl;
     EV_INFO << "Sent " << numSent << " messages" << endl;
