@@ -101,9 +101,9 @@ class TerminalApp : public cSimpleModule
         cOutVector *latencyVector;      // End-to-end delay between each terminal and self
         cOutVector hopCountVector;      // Record hop count with time stamps
         cHistogram hopCountHistogram;   // Histogram of hops, allows to find hops PDF
-        int64_t totalBytesSent;         // Helper for throughput calculation.
-        int64_t bytesSentSuccessfully;  // Helper for throughput calculation. Destination adds number of received bytes in source.
-        cOutVector throughput;          // Calculation: bytesSentSuccessfully/totalBytesSent.
+        int64_t totalBytesSent;         // Helper for efficiency calculation.
+        int64_t bytesSentSuccessfully;  // Helper for efficiency calculation. Destination adds number of received bytes in source.
+        cOutVector efficiency;          // Calculation: bytesSentSuccessfully/totalBytesSent.
                                         // NOTE: numReceived/numSent is good when all messages are of the same size
 
         // Simulation basic functions

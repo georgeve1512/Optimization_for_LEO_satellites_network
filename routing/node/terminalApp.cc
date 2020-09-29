@@ -204,8 +204,7 @@ void TerminalApp::initialize()
     hopCountHistogram.setName("Hop Count Histogram");      // First .collect() data, at finish use .record() method
     bytesSentSuccessfully = 0;
     totalBytesSent = 0;
-    throughput.setName("Throughput");                      // Record with .record() method
-//    throughput.setUnit("bps");
+    efficiency.setName("Efficiency");                      // Record with .record() method
 
     // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
@@ -492,11 +491,11 @@ void TerminalApp::handleMessage(cMessage *msg)
                 hopCountVector.record(terMsg->getHopCount());
                 hopCountHistogram.collect(terMsg->getHopCount());
 
-                // Record throughput - at source
+                // Record efficiency - at source
                 TerminalApp* src = check_and_cast<TerminalApp*>(getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr())->getSubmodule("app"));
                 src->bytesSentSuccessfully += terMsg->getByteLength();
                 src->numReceived++;
-                src->throughput.record((src->bytesSentSuccessfully)/(src->totalBytesSent));
+                src->efficiency.record((src->bytesSentSuccessfully)/((double)(src->totalBytesSent)));
                 switch (terMsg->getReplyType()){
                     case udpSingle:{
                         if (hasGUI()){
@@ -622,12 +621,12 @@ void TerminalApp::finish(){
     recordScalar("Messages Sent Successfully",numReceived);
     recordScalar("Bytes Sent in Total", totalBytesSent);
     recordScalar("Bytes Sent Successfully", bytesSentSuccessfully);
-    recordScalar("Average throughput", bytesSentSuccessfully/simTime().dbl());
+    recordScalar("Average efficiency", bytesSentSuccessfully/(double)totalBytesSent);
     hopCountHistogram.record();
     EV_INFO << "Terminal " << myAddress << ":" << endl;
     EV_INFO << "Received " << numReceived << " messages" << endl;
     EV_INFO << "Sent " << numSent << " messages" << endl;
-    EV_INFO << "Average throughput: " << bytesSentSuccessfully/simTime().dbl() << endl;
+    EV_INFO << "Average efficiency: " << bytesSentSuccessfully/(double)totalBytesSent << endl;
 }
 
 bool TerminalApp::checkConnection(int mode){

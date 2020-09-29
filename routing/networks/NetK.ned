@@ -74,11 +74,11 @@ network NetK
                 num_of_terminals = num_of_terminals;
                 
                 // Mobility constraints
-                mobility.constraintAreaMaxX = maxX;
-                mobility.constraintAreaMaxY = maxY;
+                mobility.constraintAreaMaxX = maxX - terminal[index].radius;
+                mobility.constraintAreaMaxY = maxY - terminal[index].radius;
                 mobility.constraintAreaMaxZ = 0;
-                mobility.constraintAreaMinX = minX;
-                mobility.constraintAreaMinY = minY;
+                mobility.constraintAreaMinX = minX + terminal[index].radius;
+                mobility.constraintAreaMinY = minY + terminal[index].radius;
                 mobility.constraintAreaMinZ = 0;            
         }
     connections allowunconnected:
@@ -122,7 +122,7 @@ network NetK
     	//		. . z
     	// NOTE: Odd ruling for legacy porpuses
 
-        //y -> first -> last
+        // y -> first -> last
         rte[0].port++ <--> C <--> rte[colNum+1].port++;														// first -> y
         rte[0].port++ <--> C <--> rte[num_of_hosts-1].port++;												// first -> last 
 
