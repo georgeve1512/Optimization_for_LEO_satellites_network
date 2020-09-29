@@ -38,6 +38,7 @@ class TerminalApp : public cSimpleModule
         double getDistanceFromSatellite(int satAddress);
         int getClosestSatellite(int ignoreIndex);
         void getPos(double &posX, double &posY) {posX = myPosX; posY = myPosY;};
+        double getRadius() const {return radius;};
     protected:
         // Simulation helpers
         cMessage *appMsg;                         // Self message for regular app

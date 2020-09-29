@@ -1770,7 +1770,10 @@ int Routing::calculateFutureSatellite(int destTerminal){
     int numOfHops;
     getClosestSatellite(destTerminal, &numOfHops);
 
-    return getClosestSatellite(destTerminal, nullptr, numOfHops * getAverageLinkDelay());
+    if (numOfHops != -1)
+        return getClosestSatellite(destTerminal, nullptr, numOfHops * getAverageLinkDelay());
+    else
+        return -1;
 
     cModule *ter = getParentModule()->getParentModule()->getSubmodule("terminal", destTerminal)->getSubmodule("app");
     TerminalApp *terApp = check_and_cast<TerminalApp*>(ter);
@@ -2956,10 +2959,11 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
 
     // Get target terminal position
     terApp->getPos(terminalPosX, terminalPosY);
+    double radius = terApp->getRadius();
 
     // Find minimum distance satellite
     double minDistance = DBL_MAX;
-    int satAddress;
+    int satAddress = -1;
     for(int i = 0; i < num_of_hosts; i++){
         getSatellitePosition(i, satPosX,satPosY);
 
@@ -2973,14 +2977,14 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
 
         // Save minimum distance and result
         double dist = sqrt(pow(terminalPosX-satPosX,2)+pow(terminalPosY-satPosY,2));
-        if (dist < minDistance){
+        if (dist < minDistance && dist <= radius){
             minDistance = dist;
             satAddress = i;
         }
     }
 
     // Calculate how many hops are needed
-    if (numOfHops){
+    if (numOfHops && satAddress != -1){
         //// pointer received, save number of hops to it
 
         // Get topology & nodes
@@ -3007,8 +3011,8 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
                     EV << "->" << check_and_cast<Routing*>(curr->getModule()->getSubmodule("routing"))->getAddress();
             }
             else{
-                std::cout << "Error! Link does not exist" << endl;
-                exit(2);
+                *numOfHops = -1;
+                return -1;
             }
         }
 

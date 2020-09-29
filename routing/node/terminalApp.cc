@@ -205,6 +205,7 @@ void TerminalApp::initialize()
     bytesSentSuccessfully = 0;
     totalBytesSent = 0;
     throughput.setName("Throughput");                      // Record with .record() method
+//    throughput.setUnit("bps");
 
     // Initialize position
     myDispStr = &getParentModule()->getSubmodule("mobility")->getThisPtr()->getDisplayString();
@@ -495,7 +496,7 @@ void TerminalApp::handleMessage(cMessage *msg)
                 TerminalApp* src = check_and_cast<TerminalApp*>(getParentModule()->getParentModule()->getSubmodule("terminal", terMsg->getSrcAddr())->getSubmodule("app"));
                 src->bytesSentSuccessfully += terMsg->getByteLength();
                 src->numReceived++;
-                src->throughput.record((src->bytesSentSuccessfully)/(double)(src->totalBytesSent));
+                src->throughput.record((src->bytesSentSuccessfully)/(src->totalBytesSent));
                 switch (terMsg->getReplyType()){
                     case udpSingle:{
                         if (hasGUI()){
@@ -621,10 +622,12 @@ void TerminalApp::finish(){
     recordScalar("Messages Sent Successfully",numReceived);
     recordScalar("Bytes Sent in Total", totalBytesSent);
     recordScalar("Bytes Sent Successfully", bytesSentSuccessfully);
+    recordScalar("Average throughput", bytesSentSuccessfully/simTime().dbl());
     hopCountHistogram.record();
     EV_INFO << "Terminal " << myAddress << ":" << endl;
     EV_INFO << "Received " << numReceived << " messages" << endl;
     EV_INFO << "Sent " << numSent << " messages" << endl;
+    EV_INFO << "Average throughput: " << bytesSentSuccessfully/simTime().dbl() << endl;
 }
 
 bool TerminalApp::checkConnection(int mode){
