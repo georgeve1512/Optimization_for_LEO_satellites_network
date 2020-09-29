@@ -617,16 +617,13 @@ void TerminalApp::handleMessage(cMessage *msg)
 }
 
 void TerminalApp::finish(){
-    recordScalar("Messages Sent in Total",numSent);
-    recordScalar("Messages Sent Successfully",numReceived);
+    recordScalar("Messages Sent in Total", numSent);
+    recordScalar("Messages Sent Successfully", numReceived);
     recordScalar("Bytes Sent in Total", totalBytesSent);
     recordScalar("Bytes Sent Successfully", bytesSentSuccessfully);
     recordScalar("Average efficiency", bytesSentSuccessfully/(double)totalBytesSent);
+    recordScalar("Average throughput [bps]", (8*bytesSentSuccessfully)/simTime().dbl());
     hopCountHistogram.record();
-    EV_INFO << "Terminal " << myAddress << ":" << endl;
-    EV_INFO << "Received " << numReceived << " messages" << endl;
-    EV_INFO << "Sent " << numSent << " messages" << endl;
-    EV_INFO << "Average efficiency: " << bytesSentSuccessfully/(double)totalBytesSent << endl;
 }
 
 bool TerminalApp::checkConnection(int mode){

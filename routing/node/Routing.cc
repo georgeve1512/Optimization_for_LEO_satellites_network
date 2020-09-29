@@ -14,16 +14,12 @@
 #include "Routing.h"
 
 void Routing::finish(){
-    recordScalar("Terminal Messages dropped due to wrong prediction", packetDropCounter);
+    if (packetCounter){
+        recordScalar("Prediction miss ratio", packetDropCounter/(double)packetCounter);
+        recordScalar("Load Balancing loss ratio", packetDropCounterFromHops/(double)packetCounter);
+    }
     if (totalMsgNum){
-        EV << "Satellite " << mySatAddress << " had delay of " << getAverageLinkDelay() << endl;
-    }
-    if (packetDropCounter){
-        EV << "Satellite " << mySatAddress << " dropped packets due to wrong predictions: " << packetDropCounter << endl;
-        EV << "Prediction miss ration: " << packetDropCounter/(double)packetCounter * 100 << "%" << endl;
-    }
-    if (packetDropCounterFromHops){
-        EV << "Satellite " << mySatAddress << " dropped packets due to high number of hops: " << packetDropCounterFromHops << endl;
+        recordScalar("Average delay on all links", getAverageLinkDelay());
     }
 }
 
