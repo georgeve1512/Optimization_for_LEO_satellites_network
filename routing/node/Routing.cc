@@ -2892,26 +2892,15 @@ double Routing::getAverageLinkDelay(){
 
 void Routing::getSatellitePosition(int satAddress, double &posX, double &posY){
         /* Find the (X,Y) position of the a given satellite [satAddress].
-         * The position is extracted from the mobility module's display string (the one that
-         *      changes during runtime).
+         * The position is extracted from the mobility module.
          * Position is stored in given [posX] & [posY]
          * */
 
-        // Read display string of the given satellite
-        cDisplayString *cDispStr = &getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility")->getThisPtr()->getDisplayString();
+    // Read position
+    inet::IMobility *mob = check_and_cast<inet::IMobility*>(getParentModule()->getParentModule()->getSubmodule("rte", satAddress)->getSubmodule("mobility"));
+    posX = mob->getCurrentPosition().getX();
+    posY = mob->getCurrentPosition().getY();
 
-        std::string dispStr(cDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
-        std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
-
-        dispStr = dispStr.substr(pos);                          // Cut string until the first number
-        posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
-                                                                //      location AFTER the first double
-
-        dispStr = dispStr.substr(pos);                          // Remove the X position from string
-
-        pos = dispStr.find_first_of("0123456789");              // find position of the first number
-        dispStr = dispStr.substr(pos);                          // Cut string until the first number
-        posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
 }
 
 void Routing::updateLinkDelay(int linkIndex, double delay){
@@ -2966,7 +2955,7 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
         /* Calculate new position. If the new position is outside of range, subtract the range
          *      until the position is inside again ("Completing loops")
          */
-        satPosY += estimatedTime * SATELLITE_SPEED;
+        satPosY += estimatedTime * SATELLITE_SPEED; //TODO: maybe use getCurrentVelocity()?
         while (satPosY > maxY){
             satPosY -= (maxY - minY);
         }

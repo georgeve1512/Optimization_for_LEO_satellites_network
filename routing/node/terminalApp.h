@@ -20,6 +20,8 @@
 #include "enums.h"
 #include "TerminalMsg_m.h"
 
+#include "inet/mobility/contract/IMobility.h"
+
 using namespace omnetpp;
 
 
@@ -34,7 +36,7 @@ class TerminalApp : public cSimpleModule
 
         // Auxiliary functions
         int getConnectedSatelliteAddress();
-        void updatePosition(cDisplayString *cDispStr, double &posX, double &posY); // NOTE: Simulation must run on 'fast' or lower in order for this function to work properly
+        void updatePosition(inet::IMobility* &mob, double &posX, double &posY);
         double getDistanceFromSatellite(int satAddress);
         int getClosestSatellite(int ignoreIndex);
         void getPos(double &posX, double &posY) {posX = myPosX; posY = myPosY;};
@@ -70,7 +72,7 @@ class TerminalApp : public cSimpleModule
         cPar *pingTime;             // Next time a ping is sent
 
         // Variables that read self's position (For future use)
-        cDisplayString *myDispStr;  // Self's display string to extract (X,Y) position
+        inet::IMobility *myMob;     // Self's mobility module to extract (X,Y) position from
         double myPosX;              // Self's X coordinate, extracted in meters ([m])
         double myPosY;              // Self's Y coordinate, extracted in meters ([m])
         double updateInterval;      // Time to update position
@@ -81,7 +83,7 @@ class TerminalApp : public cSimpleModule
 
         // Main Satellite
         int mainSatAddress;             // Connected main satellite's address
-        cDisplayString *mainSatDispStr; // Main satellite's display string to extract (X,Y) position
+        inet::IMobility *mainSatMob;    // Main satellite's mobility module to extract (X,Y) position from
         double mainSatPosX;             // Main satellite's X coordinate
         double mainSatPosY;             // Main satellite's Y coordinate
         double mainSatUpdateInterval;   // Time between main satellite's position updates
@@ -89,7 +91,7 @@ class TerminalApp : public cSimpleModule
 
         // Sub Satellite
         int subSatAddress;             // Connected sub ssatellite's address
-        cDisplayString *subSatDispStr; // Sub satellite's display string to extract (X,Y) position
+        inet::IMobility *subSatMob;    // Sub satellite's mobility module to extract (X,Y) position from
         double subSatPosX;             // Sub satellite's X coordinate
         double subSatPosY;             // Sub satellite's Y coordinate
         double subSatUpdateInterval;   // Time between sub satellite's position updates
@@ -113,7 +115,7 @@ class TerminalApp : public cSimpleModule
 
         // Satellite connectivity
         bool checkConnection(int mode);
-        void resetSatelliteData(int &satAddress, cDisplayString* &satDispStr, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage* &updateMsg);
+        void resetSatelliteData(int &satAddress, double &satPosX, double &satPoxY, double &satUpdateInterval, int &connectionIndex, cMessage* &updateMsg, inet::IMobility* &mob);
 
         // Sending connection messages
         int findSatelliteToConnect(int ignoreIndex, int mode);
