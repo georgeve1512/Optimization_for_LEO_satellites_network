@@ -14,7 +14,6 @@
 
 #define MAXAMOUNTOFLINKS 6          //lll: max number of links available
 #define DEFAULT_DELAY 0.000003      // 3usec
-#define SATELLITE_SPEED 50          // Satellite speed, have to be the same value as in mobility.xml
 
 //lll: weight range. not in use
 #define MAX_VALUE 10000

@@ -1,151 +1,151 @@
 <?xml version="1.0" ?>
 <movements>
 	<movement id="0">
-		<set angle="90" borderPolicy="wrap" speed="50" x="1000.0" y="1000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="2250.0" y="2250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="1">
-		<set angle="90" borderPolicy="wrap" speed="50" x="3000.0" y="1000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="6750.0" y="2250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="2">
-		<set angle="90" borderPolicy="wrap" speed="50" x="5000.0" y="1000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="11250.0" y="2250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="3">
-		<set angle="90" borderPolicy="wrap" speed="50" x="7000.0" y="1000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="15750.0" y="2250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="4">
-		<set angle="90" borderPolicy="wrap" speed="50" x="9000.0" y="1000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="20250.0" y="2250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="5">
-		<set angle="90" borderPolicy="wrap" speed="50" x="1000.0" y="3000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="2250.0" y="6750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="6">
-		<set angle="90" borderPolicy="wrap" speed="50" x="3000.0" y="3000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="6750.0" y="6750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="7">
-		<set angle="90" borderPolicy="wrap" speed="50" x="5000.0" y="3000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="11250.0" y="6750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="8">
-		<set angle="90" borderPolicy="wrap" speed="50" x="7000.0" y="3000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="15750.0" y="6750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="9">
-		<set angle="90" borderPolicy="wrap" speed="50" x="9000.0" y="3000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="20250.0" y="6750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="10">
-		<set angle="90" borderPolicy="wrap" speed="50" x="1000.0" y="5000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="2250.0" y="11250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="11">
-		<set angle="90" borderPolicy="wrap" speed="50" x="3000.0" y="5000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="6750.0" y="11250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="12">
-		<set angle="90" borderPolicy="wrap" speed="50" x="5000.0" y="5000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="11250.0" y="11250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="13">
-		<set angle="90" borderPolicy="wrap" speed="50" x="7000.0" y="5000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="15750.0" y="11250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="14">
-		<set angle="90" borderPolicy="wrap" speed="50" x="9000.0" y="5000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="20250.0" y="11250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="15">
-		<set angle="90" borderPolicy="wrap" speed="50" x="1000.0" y="7000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="2250.0" y="15750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="16">
-		<set angle="90" borderPolicy="wrap" speed="50" x="3000.0" y="7000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="6750.0" y="15750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="17">
-		<set angle="90" borderPolicy="wrap" speed="50" x="5000.0" y="7000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="11250.0" y="15750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="18">
-		<set angle="90" borderPolicy="wrap" speed="50" x="7000.0" y="7000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="15750.0" y="15750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="19">
-		<set angle="90" borderPolicy="wrap" speed="50" x="9000.0" y="7000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="20250.0" y="15750.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="20">
-		<set angle="90" borderPolicy="wrap" speed="50" x="1000.0" y="9000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="2250.0" y="20250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="21">
-		<set angle="90" borderPolicy="wrap" speed="50" x="3000.0" y="9000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="6750.0" y="20250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="22">
-		<set angle="90" borderPolicy="wrap" speed="50" x="5000.0" y="9000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="11250.0" y="20250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="23">
-		<set angle="90" borderPolicy="wrap" speed="50" x="7000.0" y="9000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="15750.0" y="20250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>
 	</movement>
 	<movement id="24">
-		<set angle="90" borderPolicy="wrap" speed="50" x="9000.0" y="9000.0"/>
+		<set angle="90" borderPolicy="wrap" speed="8" x="20250.0" y="20250.0"/>
 		<repeat>
 			<forward t="60"/>
 		</repeat>

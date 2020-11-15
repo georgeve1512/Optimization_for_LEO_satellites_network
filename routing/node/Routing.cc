@@ -2021,6 +2021,10 @@ void Routing::initialize() {
         schduleBaseLine();
     }
 
+    if (!positionAtGrid){
+        scheduleAt(simTime(), new cMessage(NULL,1));
+    }
+
 //    // start simulation with choosing leader
 //
 //        scheduleChoosingLeaderPhaseOne();
@@ -2702,27 +2706,18 @@ void Routing::handleMessage(cMessage *msg) {
         case terminal:{
 
             //// Kind = 1 -> new code for terminal support. [TerminalMsg] messages go here
-            //positionAtGrid = false;
             if (!positionAtGrid){
                 // In order to position satellite at grid's position we need to create XML files for every node
-                cDisplayString *myDispStr = &getParentModule()->getSubmodule("grid")->getThisPtr()->getDisplayString();
-                double posX, posY;
-                std::string dispStr(myDispStr->str());                   // Read display string as string, string format is t=p: (posX\, posY\, 0) m\n ...
-                std::size_t pos = dispStr.find_first_of("0123456789");  // find position of the first number
-
-                dispStr = dispStr.substr(pos);                          // Cut string until the first number
-                posX = std::stod(dispStr, &pos);                        // Extract number as double. This is the X position. Also, update [pos] the the
-                                                                        //      location AFTER the first double
-
-                dispStr = dispStr.substr(pos);                          // Remove the X position from string
-
-                pos = dispStr.find_first_of("0123456789");              // find position of the first number
-                dispStr = dispStr.substr(pos);                          // Cut string until the first number
-                posY = std::stod(dispStr);                              // Extract number as double. This is the Y position
+                // Read position
+                inet::IMobility *mob = check_and_cast<inet::IMobility*>(getParentModule()->getParentModule()->getSubmodule("rte", mySatAddress)->getSubmodule("grid"));
+                double posX = mob->getCurrentPosition().getX();
+                double posY = mob->getCurrentPosition().getY();
+                mob = check_and_cast<inet::IMobility*>(getParentModule()->getParentModule()->getSubmodule("rte", mySatAddress)->getSubmodule("mobility"));
 
                 // Print position to copy to [coordinates.txt] file, and run [buildXMLFiles.py]
                 std::cout << "Satellite " << mySatAddress << " pos: (" << posX << ", " << posY << ")" << endl;
                 if (mySatAddress == NUMOFNODES-1){
+                    std::cout << mob->getCurrentVelocity().getY() << endl;
                     endSimulation();
                 }
                 return;
@@ -2742,6 +2737,7 @@ void Routing::handleMessage(cMessage *msg) {
                     else{
                         // No satellite will be connected to target terminal
                         packetDropCounter++;
+                        packetCounter++;
                         delete terMsg;
                     }
                     break;
@@ -2935,12 +2931,14 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
      * */
 
     TerminalApp* terApp = check_and_cast<TerminalApp*>(getParentModule()->getParentModule()->getSubmodule("terminal", terminalAddress)->getSubmodule("app"));
+    inet::IMobility *mob = check_and_cast<inet::IMobility*>(getParentModule()->getParentModule()->getSubmodule("rte", mySatAddress)->getSubmodule("mobility"));
     double terminalPosX, terminalPosY, satPosX, satPosY;
     double maxX, minX, maxY, minY;
     maxX = getParentModule()->getParentModule()->par("maxX").doubleValue();
     minX = getParentModule()->getParentModule()->par("minX").doubleValue();
     maxY = getParentModule()->getParentModule()->par("maxY").doubleValue();
     minY = getParentModule()->getParentModule()->par("minY").doubleValue();
+    double velocity = mob->getCurrentVelocity().getY();
 
     // Get target terminal position
     terApp->getPos(terminalPosX, terminalPosY);
@@ -2955,7 +2953,7 @@ int Routing::getClosestSatellite(int terminalAddress, int *numOfHops, double est
         /* Calculate new position. If the new position is outside of range, subtract the range
          *      until the position is inside again ("Completing loops")
          */
-        satPosY += estimatedTime * SATELLITE_SPEED; //TODO: maybe use getCurrentVelocity()?
+        satPosY += estimatedTime * velocity;
         while (satPosY > maxY){
             satPosY -= (maxY - minY);
         }
