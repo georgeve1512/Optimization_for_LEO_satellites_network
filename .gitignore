@@ -10,3 +10,6 @@ routing/results/NetK-$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true-0.vec
 *.vci
 *.vec
 routing/results/NetK-$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true-0.vec
+routing/results/NetK-$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true-0.sca
+routing/results/NetK-$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true-0.vci
+routing/results/NetK-$seed=1, $alpha=5, $mVar=5, $LB=true, $LinkPre=true-0.vec
