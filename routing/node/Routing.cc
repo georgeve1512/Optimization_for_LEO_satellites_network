@@ -2842,8 +2842,8 @@ void Routing::handleMessage(cMessage *msg) {
             }
             else{
                 // Received ACK for a message that is not mine
-                std::cout << endl << "Received bad ACK" << endl;
-                exit(1);
+                /*std::cout << endl << "Received bad ACK" << endl;
+                exit(1);*/
             }
 
             delete msg;

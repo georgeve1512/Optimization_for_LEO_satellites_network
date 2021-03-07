@@ -79,7 +79,10 @@ network NetK
                 mobility.constraintAreaMaxZ = 0;
                 mobility.constraintAreaMinX = minX + terminal[index].radius;
                 mobility.constraintAreaMinY = minY + terminal[index].radius;
-                mobility.constraintAreaMinZ = 0;            
+                mobility.constraintAreaMinZ = 0;
+                //mobility.initialX = fmod(normal((minX+maxX)/2,(maxX-minX)/7),maxX-minX);
+                //mobility.initialY = fmod(normal((minY+maxY)/2,(maxY-minY)/7),maxY-minY);
+                //mobility.initFromDisplayString = false;            
         }
     connections allowunconnected:
         // Connection map (for num_of_hosts=25, colNum=5):
