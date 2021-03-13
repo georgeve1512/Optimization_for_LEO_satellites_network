@@ -767,7 +767,27 @@ cTopology* Routing::BuildLASTtopo(cTopology* origTopo,int alpha,int m)
 {
    cTopology* MSTTopo = primMST(origTopo, mySatAddress);
 
-   getRootsArray(MSTTopo, m);
+   switch (getParentModule()->par("methodToChooseRoots").intValue()){
+       case 0:
+           // Roots are chosen in random
+           rootCounter = (int)sqrt(NUMOFNODES);
+           for(int i = 0; i < rootCounter; i++){
+               rootNodesArr[i] = intuniform(0, NUMOFNODES-1);
+               for(int j = 0; j < i; j++){
+                   if (rootNodesArr[i] == rootNodesArr[j]){
+                       rootCounter--;
+                   }
+               }
+           }
+           break;
+       case 1:
+           // Roots are chosen by the diameter algorithm suggested by Michael
+           getRootsArray(MSTTopo, m);
+           break;
+       default:
+           break;
+   }
+
 
    int* LASTparentArr[num_of_hosts/m];
 
@@ -1993,6 +2013,13 @@ void Routing::initialize() {
     for(int i = 0; i < MAXAMOUNTOFLINKS; i++)
         linkDelay[i] = DEFAULT_DELAY;
 
+    // Load the maximal number of links to fall
+    allowedNumberOfLinksDown = getParentModule()->par("allowedNumberOfLinksDown").intValue();
+
+    // Read fault times and fix times
+    timeToNextFault = &(getParentModule()->par("timeToNextFault"));
+    recoveryFromFaultInterval = &(getParentModule()->par("recoveryFromFaultInterval"));
+
     //set initial topo weight's (1on each link)
     setLinksWeight(topo, 0);
     //init Routing table from topology
@@ -2792,6 +2819,11 @@ void Routing::handleMessage(cMessage *msg) {
 
                     delete terMsg;
                     break;
+
+                    // Disable links to test how the spanner handles faults
+                    if (allowedNumberOfLinksDown){
+                        scheduleAt(simTime() + timeToNextFault->doubleValue(), new cMessage("generate fault", fault_gen));
+                    }
                 }
                 case terminal_disconnect:{
                     //// Terminal wishes to disconnect
@@ -2849,8 +2881,47 @@ void Routing::handleMessage(cMessage *msg) {
             delete msg;
             break;  // End of link delay prediction code
         }
-    }
+        case fault_gen:{
+            // Generate a fault
+            if (allowedNumberOfLinksDown){
+                for(int i = 0; i < num_of_hosts; i++){
+                    Routing* rt = check_and_cast<Routing*>(getParentModule()->getParentModule()->getSubmodule("rte", i)->getSubmodule("routing"));
+                    rt->allowedNumberOfLinksDown--;
+                }
 
+                //// Turn a link off
+                int sat;
+                RoutingTable::iterator it = myTerminalMap.find(0);
+
+                // Find which node is connected to this satellite
+                if (it != myTerminalMap.end()){
+                    // 0 is connected to me
+                    sat = getClosestSatellite(1, NULL);
+                }
+                else{
+                    // 1 is connected to me
+                    sat = getClosestSatellite(0, NULL);
+                }
+
+                // Disable the link to destination
+                int gateIndex = (*rtable.find(sat)).second;
+                topo->getNodeFor(getParentModule())->getLinkOut(gateIndex)->disable();
+                topo->getNodeFor(getParentModule())->getLinkIn(sat)->disable();
+
+                // Update routing table
+                initRtable(topo, thisNode);
+
+                scheduleAt(simTime() + recoveryFromFaultInterval->doubleValue(), new cMessage("fix time", fault_fix));
+            }
+            delete msg;
+            break;
+        }
+        case fault_fix:{
+            // TODO: fix link - perhaps add a cQueue for the down links, and fix the first one popped from queue
+            delete msg;
+            break;
+        }
+    }
 }
 
 void Routing::sendAck(Packet *pk){

@@ -65,7 +65,9 @@ enum packet_type_list {
 enum kind_list {
     legacy = 0,
     terminal,
-    ack
+    ack,
+    fault_gen,
+    fault_fix
 };
 
 // Terminal/satellite modes

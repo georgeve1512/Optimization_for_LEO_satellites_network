@@ -44,6 +44,7 @@ public:
     int neighbors[MAXAMOUNTOFLINKS];
     ~Routing();
     int getAddress() {return mySatAddress;};
+    int allowedNumberOfLinksDown;
 private:
     int mySatAddress;
     /*Flag to determine if a node has the updated topology. otherwise, it might send messages.
@@ -153,6 +154,10 @@ private:
 
     typedef std::multiset<long> MessageIDSet;
     MessageIDSet msgSet;            // Collection of message ID's waiting to be ACK'ed
+
+    //// Fault Handling
+    cPar *timeToNextFault;
+    cPar *recoveryFromFaultInterval;
 
 protected:
     virtual void initialize() override;

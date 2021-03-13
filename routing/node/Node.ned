@@ -28,6 +28,10 @@ module Node
         bool fullTopoRun = default(false);
         string appType;
         string mobilityType = default("SuperpositioningMobility");
+        double recoveryFromFaultInterval @unit(s) = default(700s);	// The amount of time to recover from faults
+        double timeToNextFault @unit(s) = default(exponential(10s));	// The time for the next fault 
+        int methodToChooseRoots = default(1);	// 0 - Choose roots at random, 1 - Choose roots with Michael's algorithm
+        int allowedNumberOfLinksDown = default(0); // How many links are allowed to be disabled in the entire simulation
         
         // Terminal handling
         int maxTerminalNumber = default(10);
